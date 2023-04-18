@@ -1,0 +1,18 @@
+1. 线程用于统计工作
+2. 协程用于IO工作
+
+10个客户端 1024条连接 测试30秒
+
+amani http://www.baidu.com -T 10 -C 1024 -d 30s 
+
+--http10 
+--http11
+--get
+--post
+--body      自己指定 http body 
+--header    自己指定 http header, 若使用此选项则--get之类的选项失效
+
+
+CmakeList.txt 已经写好
+
+cd build && cmake .. && make 即可
