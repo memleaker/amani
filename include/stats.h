@@ -9,6 +9,7 @@
 
 class stats
 {
+public:
     uint64_t resq;
     uint64_t resp;
 

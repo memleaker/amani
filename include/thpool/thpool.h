@@ -73,16 +73,9 @@ private:
         }
     };
 
-private:
-    bool m_shutdown;
-    task_queue<std::function<void()>> m_queue;
-    std::vector<std::thread> m_threads;
-    std::mutex m_conditional_mutex;
-    std::condition_variable m_conditional_lock;
-
 public:
     thread_pool(const int n_threads = 4)
-        : m_threads(std::vector<std::thread>(n_threads)), m_shutdown(false) {}
+        : m_shutdown(false), m_threads(std::vector<std::thread>(n_threads)) {}
 
     // no copy
     thread_pool(const thread_pool &) = delete;
@@ -92,10 +85,10 @@ public:
 
     void init(void)
     {
-	for (auto& th : m_threads)
-	{
-		th = std::thread(thread_worker(this));
-	}
+        for (auto& th : m_threads)
+        {
+            th = std::thread(thread_worker(this));
+        }
     }
 
     void shutdown(void)
@@ -127,6 +120,13 @@ public:
 
         return task_ptr->get_future();
     }
+
+private:
+    bool m_shutdown;
+    task_queue<std::function<void()>> m_queue;
+    std::vector<std::thread> m_threads;
+    std::mutex m_conditional_mutex;
+    std::condition_variable m_conditional_lock;
 };
 #endif
 
