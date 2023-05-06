@@ -16,7 +16,7 @@ public:
     struct timeval start;
     struct timeval end;
 
-    float aver_qps;  // 评价每秒请求数量(不算错误的数量，服务端返回错误的时候不算)
+    float aver_qps;  // 平均每秒请求数量(不算错误的数量，服务端返回错误的时候不算)
     float aver_rtt;
     std::vector<float> tot_rtts;
 

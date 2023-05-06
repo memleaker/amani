@@ -2,35 +2,51 @@
 #define AMANI_HTTP_H
 
 #include <string>
+#include <vector>
 #include <map>
+
+#include "argument.h"
+
+static std::map<http_version, std::string> version_str = 
+{
+	{HTTP10, "HTTP1.0"},
+	{HTTP11, "HTTP1.1"},
+};
+
+static std::map<http_method, std::string> method_str = 
+{
+	{GET, "GET"},
+	{POST, "POST"},
+};
 
 class http_request
 {
 public:
-    void set_uri(const std::string &uri) { m_uri = uri; }
-    void set_method(const std::string &method) { m_method = method; }
-    void set_version(const std::string &version) { m_version = version; }
-    void set_header(const std::string &key, std::string &val) {m_header[key] = val;}
-    void set_body(const std::string &body) { m_body = body; }
-    std::string to_string(const http_request& req);
+	http_request() : m_uri("/"), m_method(GET), m_version(HTTP11)
+	{
+		m_header["User-Agent"] = "amaniv1.0";	
+	}
 
-public:
+    void set_uri(const std::string &uri) { m_uri = uri; }
+    void set_method(http_method meth) { m_method = meth; }
+    void set_version(http_version version) { m_version = version; }
+    void set_header(const std::string &key, std::string &val) {m_header[key] = val;}
+    void build_request(std::vector<char> &buf);
+
+private:
     // request line
     std::string m_uri;
-    std::string m_method;
-    std::string m_version;
+    http_method m_method;
+    http_version m_version;
 
     // request header
     std::map<std::string, std::string> m_header;
-
-    // request body
-    std::string m_body;
 };
 
 class http_response
 {
 public:
-    http_response& parse(const std::string& resp);
+    //http_response& parse(const char * resp);
 
 public:
     // response line

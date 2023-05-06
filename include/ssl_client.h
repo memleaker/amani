@@ -36,7 +36,7 @@ public:
 	int connect(sockaddr_in *addr)
 	{
 		int ret;
-		sockaddr_in server;
+		//sockaddr_in server;
 
     	ssl = ::SSL_new(ctx);
 		if (!ssl)
@@ -64,11 +64,15 @@ public:
 	int read()
 	{
 		// ::SSL_read();
+
+		return 0;
 	}
 
 	int write()
 	{
 		// ::SSL_write();
+
+		return 0;
 	}
 
 	class openssl

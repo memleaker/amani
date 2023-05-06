@@ -26,7 +26,7 @@ public:
         std::unique_lock<std::mutex> lock(m_mutex);
         return m_queue.size();
     }
-    void enqueue(T &t)
+    void enqueue(const T &t)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_queue.emplace(t);
@@ -96,13 +96,13 @@ public:
         m_shutdown = true;
         m_conditional_lock.notify_all();
 
-	for (auto &th : m_threads)
-	{
-	    if (th.joinable())
-	    {
- 	        th.join();
-	    }
-	}
+        for (auto &th : m_threads)
+        {
+            if (th.joinable())
+            {
+                th.join();
+            }
+        }
     }
 
     template <typename F, typename... Args>
@@ -112,7 +112,7 @@ public:
         auto task_ptr = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
         std::function<void()> warpper_func = [task_ptr]()
 	{
-		(*task_ptr)(); 
+		(*task_ptr)();
 	};
 
         m_queue.enqueue(warpper_func);
