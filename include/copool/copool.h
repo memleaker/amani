@@ -28,12 +28,13 @@ public:
         netio_task get_return_object()
         { return {netio_task(std::coroutine_handle<netio_task::promise_type>::from_promise(*this))}; }
         std::suspend_always initial_suspend() { return {}; }  // always suspend at start
-        std::suspend_always  final_suspend() noexcept { return {}; }
-		void return_void() {}
+        std::suspend_always final_suspend() noexcept { return {}; }
+		void return_value(int status) {ret_status = status;}
         void unhandled_exception() { throw; }
 
     public:
 		int fd;
+		int ret_status;
 		bool need_block;
 		uint32_t flags;
     };
@@ -61,12 +62,16 @@ public:
 	}
 
    	template <typename F, typename... Args>
-	void submit(F &&f, Args &&...args)
+	netio_task submit(F &&f, Args &&...args)
 	{
 		static unsigned int thid = 0;
 
+		netio_task task = f(args...);
+
 		// 刚启动时即使其挂起, 获取到返回的 handle, 便于控制
-		task_queues[thid++ % threads].enqueue(f(args...));
+		task_queues[thid++ % threads].enqueue(task);
+
+		return task;
 	}
 
 	void run()
@@ -106,6 +111,8 @@ public:
 				task.handle_.promise().need_block = false;
 				// resume schedule
 				task_que.enqueue(iowait_tasks[evs[i].data.fd]);
+
+				iowait_tasks.erase(evs[i].data.fd);
 			}
 
 			/* get task */

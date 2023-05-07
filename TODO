@@ -16,3 +16,39 @@ cd build && cmake .. && make 即可
 
 
 // 每个线程使用一个Epoll, Epoll的数量只跟线程数量有关, 跟指定的客户端数量无关
+
+
+
+
+
+
+
+
+## 缺点
+
+cpp 无栈协程是以函数单位，一个函数是一个协程, 要在这个函数里面使用co_await之类的，该函数必须是一个协程，而且是一个单独的协程
+而有栈协程是可以一直调用下去，整个调用链都是一个协程，要在函数里面使用co_await可以任意使用
+
+```
+netio_task writen()
+{
+    while (left > 0)
+    {
+        co_await write(...., left);
+    }
+}
+
+netio_task send_data()
+{
+    writen();
+}
+
+int main()
+{
+    send_data();
+}
+
+// 这段代码只会调用 write 一次，因为 writen函数是一个独立的协程, 需要在send_data里面不断resume才能再次调用到write
+// 而在有栈协程里面就不会有这种问题
+
+```

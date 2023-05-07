@@ -62,7 +62,7 @@ again:
 
 			/* fatal error, need exit */
 			std::cerr << "epoll_wait " << std::strerror(errno) << std::endl;
-			abort();
+			std::exit(1);
 		}
 
 		return ret;

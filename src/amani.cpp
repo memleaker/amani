@@ -6,6 +6,7 @@
 #include "ssl_client.h"
 #include "argument.h"
 #include "http.h"
+#include "bench.h"
 #include "thpool/thpool.h"
 #include "copool/copool.h"
 #include "copool/netio.h"
@@ -34,13 +35,13 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		req.build_request(buf);	
+		req.build_request(buf);
 	}
     
 	/* running */
 	netco_pool pool(utils::cpu_num(4));
 	pool.init();
-	// pool.submit(echo_server, pool);
+	pool.submit(http10_bench, buf, inet_addr("127.0.0.1"), 8888);
 	pool.run();
 
 	/* stat */

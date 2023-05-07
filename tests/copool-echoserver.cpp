@@ -23,13 +23,13 @@ netio_task echo_io(int fd)
         {
             std::cerr << "read error: " << std::strerror(errno) << std::endl;
             close(fd);
-            co_return;
+            co_return -1;
         }
         else if (n == 0)
         {
             std::cerr << "connection closed by peer" << std::endl;
             close(fd);
-            co_return;
+            co_return 0;
         }
 
 		buf[n] = '\0';
@@ -40,7 +40,7 @@ netio_task echo_io(int fd)
         {
             std::cerr << "write error: " << std::strerror(errno) << std::endl;
             close(fd);
-            co_return;
+            co_return -1;
         }
 	}
 }
@@ -81,6 +81,8 @@ netio_task echo_server(netco_pool& pool)
         /* echo */
 		pool.submit(echo_io, connfd);
 	}
+
+    co_return 0;
 }
 
 int main(void)

@@ -41,6 +41,45 @@ int amani_listen(int fd, uint32_t ipaddr, uint16_t port)
 	return 0;
 }
 
+class async_connect {
+public:
+	async_connect(int fd, sockaddr *addr, socklen_t addrlen) : 
+				m_fd(fd), m_addr(addr), m_addrlen(addrlen) {}
+
+    bool await_ready()
+	{
+		for (;;)
+		{
+			m_ret = connect(m_fd, m_addr, m_addrlen);
+			if (m_ret == -1)
+			{
+				if (errno == EAGAIN || errno == EINPROGRESS)
+					return false;
+
+				if (errno == EINTR)
+					continue;
+			}
+
+			return true;
+		}
+	}
+
+    void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
+	{
+		handle.promise().fd = m_fd;
+		handle.promise().flags = EPOLLOUT;
+		handle.promise().need_block = true;
+	}
+
+    ssize_t await_resume() { return 0; }
+
+private:
+	int       m_ret;
+	int       m_fd;
+	sockaddr *m_addr;
+	socklen_t m_addrlen;
+};
+
 class async_accept {
 public:
 	async_accept(int fd, sockaddr* addr, socklen_t *addrlen) : 
