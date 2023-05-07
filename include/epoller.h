@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <cerrno>
 #include <cstring>
+
+#include <unistd.h>
 #include <sys/epoll.h>
 
 class epoller
@@ -14,15 +16,14 @@ class epoller
 public:
     epoller() : epoll_fd(-1) {}
 
-    int init()
+    void init()
     {
-        epoll_fd = epoll_create(1024);
+        epoll_fd = epoll_create(1);
 		if (epoll_fd == -1)
 		{
+			std::cerr << "error: epoll create " << std::strerror(errno) << std::endl;
 			std::exit(1);
 		}
-
-		return 0;
     }
 
     int add_fd(int fd, uint32_t events)
@@ -53,7 +54,7 @@ public:
 		int ret;
 
 again:
-		ret = epoll_wait(epoll_fd, evs, events, 1);
+		ret = epoll_wait(epoll_fd, evs, events, 50);
 		if (ret == -1)
 		{
 			if (errno == EINTR)

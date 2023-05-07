@@ -137,45 +137,6 @@ private:
 
 
 
-// test
-netio_task echo_io(int fd)
-{
-	ssize_t n;
-	char buf[1024];
-
-	for (;;)
-	{
-		n = co_await async_read(fd, buf, sizeof(buf));
-		if (n > 0)
-		{
-			buf[n] = '\0';
-			std::cout << "recv: " << buf << std::endl;
-		}
-	}
-}
-
-netio_task echo_server(netco_pool& pool)
-{
-	int fd, connfd;
-	sockaddr_in addr;
-	socklen_t addrlen;
-	char ip[16];
-
-	fd = amani_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	amani_listen(fd, INADDR_ANY, 8888);
-
-	for (;;)
-	{
-		std:: cout << "ready accept : " << fd << std::endl;
-		connfd = co_await async_accept(fd, (sockaddr*)&addr, &addrlen);
-
-		std::cout << "accept: " << inet_ntop(AF_INET, &addr.sin_addr.s_addr, ip, sizeof(ip)) << std::endl;
-
-		pool.submit(echo_io, connfd);
-	}
-}
-// test
 
 
 

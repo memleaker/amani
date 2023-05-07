@@ -17,6 +17,8 @@
 #include "thpool/thpool.h"
 #include "epoller.h"
 
+#define MAX_EVENTS 1024
+
 class netio_task {
 public:
     class promise_type {
@@ -41,20 +43,19 @@ public:
 class netco_pool
 {
 public:
-	netco_pool(unsigned int threadnum) : terminated(true), threads(threadnum), thpool(threadnum), \
-							  eps(std::vector<epoller>(threadnum)), task_queues(std::vector<task_queue<netio_task>>(threadnum)) {}
+	netco_pool(unsigned int threadnum) : 
+		terminated(true), threads(threadnum), thpool(threadnum), \
+		eps(std::vector<epoller>(threadnum)), \
+		task_queues(std::vector<task_queue<netio_task>>(threadnum)) {}
 
-	int init()
+	void init()
 	{
-		// init threadpool
 		thpool.init();
 
 		for (auto &ep : eps)
 		{
 			ep.init();
 		}
-
-		return 0;
 	}
 
    	template <typename F, typename... Args>
@@ -91,14 +92,14 @@ public:
 	{
 		int events, i;
 		netio_task task;
-		epoll_event evs[1024];
+		epoll_event evs[MAX_EVENTS];
 
 		std::cout << "co run" << std::endl;
 
 		while (!terminated)
 		{
 			/* check io */
-			events = ep.wait(evs, 1024);
+			events = ep.wait(evs, MAX_EVENTS);
 			for (i = 0; i < events; i++)
 			{
 				ep.del_fd(evs[i].data.fd);

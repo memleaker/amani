@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 
+# test 需要放在头部
+add_subdirectory(${CMAKE_SOURCE_DIR}/tests ${CMAKE_SOURCE_DIR}/tests)
+
 # project
 project(amani)
 
@@ -28,3 +31,4 @@ target_link_libraries(amani pthread ssl crypto)
 
 # install
 install(FILES amani DESTINATION /usr/bin/amani)
+

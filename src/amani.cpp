@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 	/* running */
 	netco_pool pool(utils::cpu_num(4));
 	pool.init();
-	pool.submit(echo_server, pool);
+	// pool.submit(echo_server, pool);
 	pool.run();
 
 	/* stat */
