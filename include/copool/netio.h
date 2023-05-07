@@ -43,48 +43,59 @@ int amani_listen(int fd, uint32_t ipaddr, uint16_t port)
 
 class async_accept {
 public:
-	async_accept(int fd, sockaddr* addr, socklen_t *addrlen) : m_fd(fd), m_addr(addr), m_addrlen(addrlen) {}
+	async_accept(int fd, sockaddr* addr, socklen_t *addrlen) : 
+		m_fd(fd), m_connfd(-1), m_need_suspend(false), m_addr(addr), m_addrlen(addrlen) {}
 
     bool await_ready()
 	{
-		int ret;
+		for (;;)
+		{
+			m_connfd = accept4(m_fd, m_addr, m_addrlen, SOCK_NONBLOCK);		
+			if (m_connfd == -1)
+			{
+				if (errno == EAGAIN)
+				{
+					m_need_suspend = true;
+					return false;  // suspend
+				}
 
-		ret = accept4(m_fd, m_addr, m_addrlen, SOCK_NONBLOCK);		
-		if (ret == -1 && errno == EAGAIN)
-			return false;  // suspend
-		std::cout << "ready" << std::endl;
+				if (errno == EINTR)
+					continue;
+			}
 
-		return true;
+			return true; // dont't suspend
+		}
 	}
 
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
 		handle.promise().flags = EPOLLIN;
-		handle.promise().need_block = 1;
+		handle.promise().need_block = true;
 	}
 
     ssize_t await_resume()
 	{
-		int ret;
-
-		std::cout << "resume" << std::endl;
+		if (!m_need_suspend)
+			return m_connfd;
 
 		for (;;)
 		{
-			ret = accept4(m_fd, m_addr, m_addrlen, SOCK_NONBLOCK);		
-			if (ret == -1)
+			m_connfd = accept4(m_fd, m_addr, m_addrlen, SOCK_NONBLOCK);	
+			if (m_connfd == -1)
 			{
 				if (errno == EINTR || errno == EAGAIN)
 					continue;
 			}
 
-			return ret;
+			return m_connfd;
 		}
 	}
 
 private:
-	int     m_fd;
+	int     	m_fd;
+	int         m_connfd;
+	bool        m_need_suspend;
 	sockaddr   *m_addr;
 	socklen_t  *m_addrlen;
 };
@@ -92,27 +103,42 @@ private:
 
 class async_read {
 public:
-	async_read(int fd, void *buf, size_t len) : m_fd(fd), m_buf(buf), m_len(len) {}
+	async_read(int fd, void *buf, size_t len) : 
+			m_fd(fd), m_buf(buf), m_len(len), m_need_suspend(false) {}
 
     bool await_ready()
 	{
-		// sys_read 即真正的read系统调用
-		m_nbytes = read(m_fd, m_buf, m_len);
-		if (m_nbytes == -1 && errno == EAGAIN)
-			return false;  // suspend
+		for (;;)
+		{
+			m_nbytes = read(m_fd, m_buf, m_len);
+			if (m_nbytes == -1)
+			{
+				if (errno == EAGAIN)
+				{
+					m_need_suspend = true;
+					return false;
+				}
+				
+				if (errno == EINTR)
+					continue;
+			}
 
-		return true;
+			return true;
+		}
 	}
 
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
 		handle.promise().flags = EPOLLIN;
-		handle.promise().need_block = 1;
+		handle.promise().need_block = true;
 	}
 
     ssize_t await_resume()
 	{
+		if (!m_need_suspend)
+			return m_nbytes;
+
 		for (;;)
 		{
 			m_nbytes = read(m_fd, m_buf, m_len);
@@ -131,15 +157,66 @@ private:
 	void *  m_buf;
 	size_t  m_len;
 	ssize_t m_nbytes;
+	bool    m_need_suspend;
 };
 
+class async_write {
+public:
+	async_write(int fd, void *buf, size_t len) : 
+				m_fd(fd), m_buf(buf), m_len(len), m_need_suspend(false) {}
 
+    bool await_ready()
+	{
+		for (;;)
+		{
+			m_nbytes = write(m_fd, m_buf, m_len);
+			if (m_nbytes == -1)
+			{
+				if (errno == EAGAIN)
+				{
+					m_need_suspend = true;
+					return false;
+				}
 
+				if (errno == EINTR)
+					continue;
+			}
 
+			return true;
+		}
+	}
 
+    void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
+	{
+		handle.promise().fd = m_fd;
+		handle.promise().flags = EPOLLOUT;
+		handle.promise().need_block = true;
+	}
 
+    ssize_t await_resume()
+	{
+		if (!m_need_suspend)
+			return m_nbytes;
 
+		for (;;)
+		{
+			m_nbytes = write(m_fd, m_buf, m_len);
+			if (m_nbytes == -1)
+			{
+				if (errno == EINTR || errno == EAGAIN)
+					continue;
+			}
 
+			return m_nbytes;
+		}
+	}
 
+private:
+	int     m_fd;
+	void *  m_buf;
+	size_t  m_len;
+	ssize_t m_nbytes;
+	bool    m_need_suspend;
+};
 
 #endif

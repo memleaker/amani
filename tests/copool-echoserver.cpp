@@ -19,11 +19,29 @@ netio_task echo_io(int fd)
 	for (;;)
 	{
 		n = co_await async_read(fd, buf, sizeof(buf));
-		if (n > 0)
-		{
-			buf[n] = '\0';
-			std::cout << "recv: " << buf << std::endl;
-		}
+        if (n == -1)
+        {
+            std::cerr << "read error: " << std::strerror(errno) << std::endl;
+            close(fd);
+            co_return;
+        }
+        else if (n == 0)
+        {
+            std::cerr << "connection closed by peer" << std::endl;
+            close(fd);
+            co_return;
+        }
+
+		buf[n] = '\0';
+		std::cout << "recv: " << buf << std::endl;
+
+        n = co_await async_write(fd, buf, n);
+        if (n == -1)
+        {
+            std::cerr << "write error: " << std::strerror(errno) << std::endl;
+            close(fd);
+            co_return;
+        }
 	}
 }
 

@@ -23,6 +23,8 @@ class netio_task {
 public:
     class promise_type {
     public:
+		promise_type() : fd(-1), need_block(false), flags(EPOLLIN) {}
+
         netio_task get_return_object()
         { return {netio_task(std::coroutine_handle<netio_task::promise_type>::from_promise(*this))}; }
         std::suspend_always initial_suspend() { return {}; }  // always suspend at start
@@ -32,7 +34,7 @@ public:
 
     public:
 		int fd;
-		int need_block;
+		bool need_block;
 		uint32_t flags;
     };
 
@@ -94,8 +96,6 @@ public:
 		netio_task task;
 		epoll_event evs[MAX_EVENTS];
 
-		std::cout << "co run" << std::endl;
-
 		while (!terminated)
 		{
 			/* check io */
@@ -103,6 +103,7 @@ public:
 			for (i = 0; i < events; i++)
 			{
 				ep.del_fd(evs[i].data.fd);
+				task.handle_.promise().need_block = false;
 				// resume schedule
 				task_que.enqueue(iowait_tasks[evs[i].data.fd]);
 			}
@@ -114,31 +115,30 @@ public:
 				continue;
 			}
 
-			/* handle task */
+			/* resume */
+			task.handle_.resume();
+
 			if (task.handle_.done())
 			{
 				// 结束时需要挂起, 因此需要手动销毁
 				// 如果结束时不挂起, 则resume返回后handle就已经destroy(), 下面再使用不合法了
 				task.handle_.destroy();
+
+				continue;
+			}
+
+			if (task.handle_.promise().need_block)
+			{
+				// add fd to epoll
+				std::cout << "add " << task.handle_.promise().fd << "to epoll" << std::endl;
+				ep.add_fd(task.handle_.promise().fd, task.handle_.promise().flags);
+
+				iowait_tasks[task.handle_.promise().fd] = task;
 			}
 			else
 			{
-				// resume
-				task.handle_.resume();
-
-				if (task.handle_.promise().need_block)
-				{
-					// add fd to epoll
-					std::cout << "add " << task.handle_.promise().fd << "to epoll" << std::endl;
-					ep.add_fd(task.handle_.promise().fd, task.handle_.promise().flags);
-
-					iowait_tasks[task.handle_.promise().fd] = task;
-				}
-				else
-				{
-					// requeue task to continue schedle
-					task_que.enqueue(task);
-				}
+				// requeue task to continue schedle
+				task_que.enqueue(task);
 			}
 		}
 	}
