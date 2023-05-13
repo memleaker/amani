@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 
+#include "buffer.h"
 #include "argument.h"
 
 static std::map<http_version, std::string> version_str = 
@@ -46,13 +47,23 @@ private:
 class http_response
 {
 public:
-    //http_response& parse(const char * resp);
+    int parse(buffer& buf);
+    int parse_version(buffer::iterator& it, buffer& buf);
+    int parse_status(buffer::iterator& it, buffer& buf);
+    int parse_reason(buffer::iterator& it, buffer& buf);
+    int parse_header(buffer::iterator& it, buffer& buf);
+    int parse_body(buffer::iterator& it, buffer& buf);
+    int parse_chunked_body(buffer::iterator& it, buffer& buf);
+    int parse_block_len(buffer::iterator& it, buffer& buf);
+    int parse_block_data(int size, buffer::iterator& it, buffer& buf);
 
 public:
     // response line
     int status_code;
     std::string version;
     std::string reason;
+
+    std::map<std::string, std::string> headers;
 };
 
 #endif

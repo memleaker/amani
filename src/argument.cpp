@@ -6,9 +6,6 @@ static struct option long_options[] = {
     { "http10",  no_argument, NULL, 0 },
     { "get",     no_argument, NULL, 1 },
     { "post",    no_argument, NULL, 2 },
-    { "https",   no_argument, NULL, 3 },
-	{ "header-key", required_argument, NULL, 4 },
-	{ "header-val", required_argument, NULL, 5 },
 };
 
 void argument::parse(int argc, char **argv)
@@ -49,10 +46,7 @@ void argument::parse(int argc, char **argv)
 		meth = GET;
 		break;
 	case 2:
-		break;
 		meth = POST;
-	case 3:
-		https = true;
 		break;
 	default:
 		break;
@@ -62,11 +56,6 @@ void argument::parse(int argc, char **argv)
 	/* check */
 	if (urlstr == "") {
 		std::cout << "url is must option" << std::endl;
-		std::exit(1);
-	}
-
-	if ((http_version == HTTP10) && https) {
-		std::cout << "--http10 cannot used with --https" << std::endl;
 		std::exit(1);
 	}
 

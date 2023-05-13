@@ -3,7 +3,6 @@
 
 #include "utils.h"
 #include "stats.h"
-#include "ssl_client.h"
 #include "argument.h"
 #include "http.h"
 #include "bench.h"
@@ -22,9 +21,6 @@ int main(int argc, char **argv)
 
 	/* signals */
     signal(SIGPIPE, SIG_IGN);
-
-	/* ssl */
-    // ssl_client sslc(1, ssl_client::openssl::init_ssl_env());
 
 	/* build request */
 	std::vector<char> buf;

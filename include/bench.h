@@ -11,17 +11,11 @@
 netio_task http10_bench(std::vector<char>& req, uint32_t ipaddr, uint16_t port)
 {
 	int sock, ret;
+	char buf[8192];
 	sockaddr_in addr;
 	netio_task task;
 	http_response resp;
 	ssize_t nleft, nwrite, n;
-
-	sock = amani_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock == -1)
-	{
-		std::cerr << "createa socket failed: " << std::strerror(errno) << std::endl;
-		co_return -1;
-	}
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
@@ -30,6 +24,14 @@ netio_task http10_bench(std::vector<char>& req, uint32_t ipaddr, uint16_t port)
 
 	for (;;)
 	{
+		/* socket */
+		sock = amani_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (sock == -1)
+		{
+			std::cerr << "createa socket failed: " << std::strerror(errno) << std::endl;
+			co_return -1;
+		}
+
 		/* connect */
 		ret = co_await async_connect(sock, (sockaddr*)&addr, sizeof(addr));
 		if (ret == -1)
@@ -52,9 +54,33 @@ netio_task http10_bench(std::vector<char>& req, uint32_t ipaddr, uint16_t port)
 			nleft  -= n;
 		}
 
-		// recv_response(resp, sock);
+		/* recv response */
+		for (;;)
+		{
+			n = co_await async_read(sock, buf, sizeof(buf));
+			if (n < 0)
+			{
+				std::cerr << "read response failed: " << std::strerror(errno) << std::endl;
+				// 统计信息
+				co_return -1;
+			}
+			else if (n == 0)
+			{
+				// connection closed by peer
+				// 统计信息
+				co_return 0;
+			}
+
+			// if (resp.parse(buf, n))
+			// 	break;
+		}
+
+		/* 统计信息 */
+		// std::cout << "code: " << resp.status_code << std::endl;
+
+		close(sock);
+
 		sleep(1);
-		// close(sock);
 	}
 }
 

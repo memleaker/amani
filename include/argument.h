@@ -14,11 +14,10 @@ enum http_method  {GET, POST};
 class argument
 {
 public:
-    argument() : https(false), clients(1), time(10), http_version(HTTP11), meth(GET) {}
+    argument() : clients(1), time(10), http_version(HTTP11), meth(GET) {}
 
     void parse(int argc, char **argv);
 
-    bool https;
 	int clients;
 	int time;
 	enum http_version http_version;

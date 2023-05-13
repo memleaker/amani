@@ -13,6 +13,11 @@ public:
         cpus = sysconf(_SC_NPROCESSORS_ONLN);
         return (cpus > min) ? cpus : min;
     }
+
+    static void set_limit()
+    {
+        
+    }
 };
 
 #endif

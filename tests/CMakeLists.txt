@@ -19,3 +19,5 @@ target_link_libraries(thpool-test pthread)
 
 add_executable(copool-echoserver copool-echoserver.cpp)
 target_link_libraries(copool-echoserver pthread)
+
+add_executable(http-test http-test.cpp ../src/http.cpp)
