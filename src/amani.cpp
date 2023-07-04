@@ -1,5 +1,6 @@
 
 #include <signal.h>
+#include <sys/time.h>
 
 #include "utils.h"
 #include "stats.h"
@@ -14,7 +15,6 @@
 int main(int argc, char **argv)
 {
     stats st;
-	int time {0};
 	SSL_CTX *ctx;
 
 	/* parse argument */
@@ -44,15 +44,11 @@ int main(int argc, char **argv)
 	/* running */
 	netco_pool pool(utils::cpu_num(4));
 	pool.init();
-	pool.submit(ssl_bench, ctx, buf, inet_addr("220.181.38.149"), 443);
+	pool.submit(ssl_bench, ctx, buf, st, inet_addr("220.181.38.149"), 443);
 	pool.run();
 
 	/* stat */
-    for (time = 0; time < arg.time; time++)
-	{
-    	// print_stats(st); // 每秒打印一次打印stats
-		sleep(1);
-	}
+	st.print_status(arg.time, arg.urlstr, arg.urlinfo.ipaddr);
 
 	/* stop */
 	pool.shutdown();

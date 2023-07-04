@@ -288,14 +288,12 @@ public:
 				err = SSL_get_error(m_ssl, m_ret);
 				if (err == SSL_ERROR_WANT_WRITE)
 				{
-					std::cout << "want wr" << std::endl;
 					m_need_suspend = true;
 					m_flag = EPOLLOUT;
 					return false;
 				}
 				else if (err == SSL_ERROR_WANT_READ)
 				{
-					std::cout << "want re" << std::endl;
 					m_need_suspend = true;
 					m_flag = EPOLLIN;
 					return false;
@@ -358,14 +356,12 @@ public:
 				err = SSL_get_error(m_ssl, m_nbytes);
 				if (err == SSL_ERROR_WANT_WRITE)
 				{
-					std::cout << "want write" << std::endl;
 					m_need_suspend = true;
 					m_flag = EPOLLOUT;
 					return false;
 				}
 				if (err == SSL_ERROR_WANT_READ)
 				{
-					std::cout << "want read" << std::endl;
 					m_need_suspend = true;
 					m_flag = EPOLLIN;
 					return false;
@@ -413,20 +409,17 @@ public:
 		for (;;)
 		{
 			m_nbytes = SSL_write(m_ssl, m_buf, m_len);
-			std::cout << "write" << m_nbytes << std::endl;
 			if (m_nbytes <= 0)
 			{
 				err = SSL_get_error(m_ssl, m_nbytes);
 				if (err == SSL_ERROR_WANT_WRITE)
 				{
-					std::cout << "want write" << std::endl;
 					m_need_suspend = true;
 					m_flag = EPOLLOUT;
 					return false;
 				}
 				if (err == SSL_ERROR_WANT_READ)
 				{
-					std::cout << "want read" << std::endl;
 					m_need_suspend = true;
 					m_flag = EPOLLIN;
 					return false;

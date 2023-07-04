@@ -1,28 +1,45 @@
 #include <ctime>
+#include <cstdio>
+#include <cstdint>
 #include <iostream>
 
 #include <unistd.h>
 
 #include "stats.h"
+#include "utils.h"
 
-void print_status(stats& st, unsigned int seconds, unsigned int livetime)
+void stats::print_status(int time, std::string desturl, std::string destip)
 {
-    time_t start, curr;
-    unsigned int cost {0};
+    double rtt;
+    static uint64_t lastreq = 0, lastresp = 0, lastok = 0;
+    uint64_t curreq, curresp, ok;
+    char buf[2048], interval[32];
 
-    std::cout << "Statistic about " << st.desturl << "(" << st.destip << ")" << std::endl;
-    std::cout << "\tInterval" << "\t\t" << "Request" << "\t\t" << "Response" << std::endl;
+    std::cout << "Statistic about " << desturl << "(" << destip << ")" << std::endl;
+    snprintf(buf, sizeof(buf), "%-16s%-16s%-16s%-16s%-16s", 
+                  "Interval", "Request", "Response", "Rtt", "200OK");
+    std::cout << buf << std::endl;
 
-    for (curr = (start = std::time(NULL)); (curr - start) < livetime;
-    	 curr = std::time(NULL))
+    for (int t = 0; t < time; t++)
     {
-        stats last(st);
+        curreq  = req;
+        curresp = resp;
+        ok      = status_codes[200];
+        rtt     = utils::average_rtt(rtts, lastresp, curresp);
 
-	    ::sleep(seconds);
+        /* print */
+        snprintf(interval, sizeof(interval), "%llu-%llu sec", t, t+1);
+        std::cout << t << "-" << t+1 << " sec" << "\t\t"
+                  << curreq - lastreq << " qps" << "\t\t"
+                  << curresp - lastresp << " pps" << "\t\t"
+                  << rtt << " ms" << "\t\t"
+                  << ok - lastok << std::endl;
 
-        // print
-        std::cout << "\t"   << cost << "-" << cost+seconds << " sec" \
-            << "\t\t" << st.resq-last.resq << " times" \
-            << "\t\t" << st.resp-last.resp << " times" << std::endl;
-        }
+        /* update */
+        lastreq  = curreq;
+        lastresp = curresp;
+        lastok   = ok;
+
+        sleep(1);
+    }
 }

@@ -139,7 +139,6 @@ public:
 			if (task.handle_.promise().need_block)
 			{
 				// add fd to epoll
-				std::cout << "add " << task.handle_.promise().fd << "to epoll" << std::endl;
 				ep.add_fd(task.handle_.promise().fd, task.handle_.promise().flags);
 
 				iowait_tasks[task.handle_.promise().fd] = task;

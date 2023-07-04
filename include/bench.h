@@ -4,14 +4,18 @@
 #include <iostream>
 #include <vector>
 #include <cstddef>
+#include <sys/time.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include "stats.h"
+#include "utils.h"
 #include "http.h"
+
 #include "copool/netio.h"
 
-netio_task http10_bench(std::vector<char>& req, uint32_t ipaddr, uint16_t port)
+netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint16_t port)
 {
 	int sock, ret;
 	char buff[8192];
@@ -98,7 +102,7 @@ netio_task http10_bench(std::vector<char>& req, uint32_t ipaddr, uint16_t port)
 	}
 }
 
-netio_task http11_bench(std::vector<char>& req, uint32_t ipaddr, uint16_t port)
+netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint16_t port)
 {
 	int sock, ret;
 	char buff[8192];
@@ -184,7 +188,7 @@ netio_task http11_bench(std::vector<char>& req, uint32_t ipaddr, uint16_t port)
 	}
 }
 
-netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, uint32_t ipaddr, uint16_t port)
+netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, stats &st, uint32_t ipaddr, uint16_t port)
 {
 	int sock, ret;
 	char errs[2048];
@@ -195,6 +199,7 @@ netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, uint32_t ipaddr, uint
 	http_response resp;
 	ssize_t nleft, nwrite, n;
 	SSL *ssl;
+	struct timeval start, end;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
@@ -247,6 +252,8 @@ netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, uint32_t ipaddr, uint
 
 	for (;;)
 	{
+		::gettimeofday(&start, NULL);
+
 		/* send data */
 		for (nleft = req.size(), nwrite = 0; nleft > 0; )
 		{
@@ -262,6 +269,9 @@ netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, uint32_t ipaddr, uint
 			nleft  -= n;
 		}
 
+		/* stats */
+		st.inc_request();
+
 		/* recv response */
 		for (;;)
 		{
@@ -269,17 +279,8 @@ netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, uint32_t ipaddr, uint
 			if (n <= 0)
 			{
 				std::cerr << "read response failed: " << std::strerror(errno) << std::endl;
-				// 统计信息
 				co_return -1;
 			}
-
-
-			for (int i = 0; i < n; i++)
-			{
-				std::cout << buff[i];
-			}
-
-			std::cout << std::endl;
 
 			buf.push_back(buff, n);
 			ret = resp.parse(buf);
@@ -287,8 +288,10 @@ netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, uint32_t ipaddr, uint
 				continue;
 			else if (ret == 0)
 			{
-				/* 统计信息 */
-				std::cout << "code: " << resp.status_code << std::endl;
+				::gettimeofday(&end, NULL);
+				st.inc_response();
+				st.inc_status(resp.status_code);
+				st.set_rtt(utils::rtt(start, end));
 				break;
 			}
 			else
