@@ -13,6 +13,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
 #include "copool.h"
 
 int amani_socket(int domain, int type, int protocol)
@@ -44,7 +47,7 @@ int amani_listen(int fd, uint32_t ipaddr, uint16_t port)
 class async_connect {
 public:
 	async_connect(int fd, sockaddr *addr, socklen_t addrlen) : 
-				m_fd(fd), m_addr(addr), m_addrlen(addrlen) {}
+				m_fd(fd), m_addr(addr), m_addrlen(addrlen), m_need_suspend(false) {}
 
     bool await_ready()
 	{
@@ -54,7 +57,10 @@ public:
 			if (m_ret == -1)
 			{
 				if (errno == EAGAIN || errno == EINPROGRESS)
+				{
+					m_need_suspend = true;
 					return false;
+				}
 
 				if (errno == EINTR)
 					continue;
@@ -71,13 +77,19 @@ public:
 		handle.promise().need_block = true;
 	}
 
-    ssize_t await_resume() { return 0; }
+    ssize_t await_resume()
+	{
+		if (m_need_suspend)
+			return 0;
+		return m_ret;
+	}
 
 private:
 	int       m_ret;
 	int       m_fd;
 	sockaddr *m_addr;
 	socklen_t m_addrlen;
+	bool      m_need_suspend;
 };
 
 class async_accept {
@@ -183,7 +195,7 @@ public:
 			m_nbytes = read(m_fd, m_buf, m_len);
 			if (m_nbytes == -1)
 			{
-				if (errno == EINTR || errno == EAGAIN)
+				if (errno == EINTR)
 					continue;
 			}
 
@@ -242,7 +254,7 @@ public:
 			m_nbytes = write(m_fd, m_buf, m_len);
 			if (m_nbytes == -1)
 			{
-				if (errno == EINTR || errno == EAGAIN)
+				if (errno == EINTR)
 					continue;
 			}
 
@@ -253,6 +265,198 @@ public:
 private:
 	int     m_fd;
 	void *  m_buf;
+	size_t  m_len;
+	ssize_t m_nbytes;
+	bool    m_need_suspend;
+};
+
+/* ssl */
+class async_sslconnect {
+public:
+	async_sslconnect(SSL *ssl, int fd) : 
+				m_fd(fd), m_ssl(ssl), m_need_suspend(false) {}
+
+    bool await_ready()
+	{
+		int err;
+
+		for (;;)
+		{
+			m_ret = SSL_connect(m_ssl);
+			if (m_ret <= 0)
+			{
+				err = SSL_get_error(m_ssl, m_ret);
+				if (err == SSL_ERROR_WANT_WRITE)
+				{
+					std::cout << "want wr" << std::endl;
+					m_need_suspend = true;
+					m_flag = EPOLLOUT;
+					return false;
+				}
+				else if (err == SSL_ERROR_WANT_READ)
+				{
+					std::cout << "want re" << std::endl;
+					m_need_suspend = true;
+					m_flag = EPOLLIN;
+					return false;
+				}
+			}
+
+			return true;
+		}
+	}
+
+    void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
+	{
+		handle.promise().fd = m_fd;
+		handle.promise().flags = m_flag;
+		handle.promise().need_block = true;
+	}
+
+    ssize_t await_resume()
+	{
+		int err;
+
+		if (!m_need_suspend)
+			return m_ret;
+
+		m_ret = ::SSL_connect(m_ssl);
+		if (m_ret <= 0)
+		{
+			err = SSL_get_error(m_ssl, m_ret);
+			if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
+			{
+				return 0;
+			}
+		}
+
+		return m_ret;
+	}
+
+private:
+	int       m_flag;
+	int       m_ret;
+	int       m_fd;
+	SSL      *m_ssl;
+	bool      m_need_suspend;
+};
+
+class async_sslread {
+public:
+	async_sslread(SSL *ssl, int fd, void *buf, size_t len) : 
+			m_fd(fd), m_buf(buf), m_ssl(ssl), m_len(len), m_need_suspend(false) {}
+
+    bool await_ready()
+	{
+		int err;
+
+		for (;;)
+		{
+			m_nbytes = SSL_read(m_ssl, m_buf, m_len);
+			if (m_nbytes <= 0)
+			{
+				err = SSL_get_error(m_ssl, m_nbytes);
+				if (err == SSL_ERROR_WANT_WRITE)
+				{
+					std::cout << "want write" << std::endl;
+					m_need_suspend = true;
+					m_flag = EPOLLOUT;
+					return false;
+				}
+				if (err == SSL_ERROR_WANT_READ)
+				{
+					std::cout << "want read" << std::endl;
+					m_need_suspend = true;
+					m_flag = EPOLLIN;
+					return false;
+				}
+			}
+
+			return true;
+		}
+	}
+
+    void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
+	{
+		handle.promise().fd = m_fd;
+		handle.promise().flags = m_flag;
+		handle.promise().need_block = true;
+	}
+
+    ssize_t await_resume()
+	{
+		if (!m_need_suspend)
+			return m_nbytes;
+
+		return ::SSL_read(m_ssl, m_buf, m_len);
+	}
+
+private:
+	int     m_fd;
+	int     m_flag;
+	void *  m_buf;
+	SSL  *  m_ssl;
+	size_t  m_len;
+	ssize_t m_nbytes;
+	bool    m_need_suspend;
+};
+
+class async_sslwrite {
+public:
+	async_sslwrite(SSL *ssl, int fd, void *buf, size_t len) : 
+				m_fd(fd), m_buf(buf), m_ssl(ssl), m_len(len), m_need_suspend(false) {}
+
+    bool await_ready()
+	{
+		int err;
+
+		for (;;)
+		{
+			m_nbytes = SSL_write(m_ssl, m_buf, m_len);
+			std::cout << "write" << m_nbytes << std::endl;
+			if (m_nbytes <= 0)
+			{
+				err = SSL_get_error(m_ssl, m_nbytes);
+				if (err == SSL_ERROR_WANT_WRITE)
+				{
+					std::cout << "want write" << std::endl;
+					m_need_suspend = true;
+					m_flag = EPOLLOUT;
+					return false;
+				}
+				if (err == SSL_ERROR_WANT_READ)
+				{
+					std::cout << "want read" << std::endl;
+					m_need_suspend = true;
+					m_flag = EPOLLIN;
+					return false;
+				}
+			}
+			return true;
+		}
+
+	}
+
+    void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
+	{
+		handle.promise().fd = m_fd;
+		handle.promise().flags = m_flag;
+		handle.promise().need_block = true;
+	}
+
+    ssize_t await_resume()
+	{
+		if (!m_need_suspend)
+			return m_nbytes;
+
+		return ::SSL_write(m_ssl, m_buf, m_len);
+	}
+
+private:
+	int     m_fd;
+	int     m_flag;
+	void *  m_buf;
+	SSL  *  m_ssl;
 	size_t  m_len;
 	ssize_t m_nbytes;
 	bool    m_need_suspend;

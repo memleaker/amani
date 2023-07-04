@@ -17,10 +17,14 @@ void http_request::build_request(std::vector<char> &buf)
 	hdr += version_str[m_version];
 	hdr += "\r\n";
 
+	hdr += ("Connection: "+ conn_str[m_version] + "\r\n");
+
 	for (auto [k, v] : m_header)
 	{
-		hdr += (k + ":" + v + "\r\n");
+		hdr += (k + ":" + " " + v + "\r\n");
 	}
+
+	hdr += "\r\n";
 
 	/* assign */
 	buf = std::vector(hdr.begin(), hdr.end());

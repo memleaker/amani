@@ -6,6 +6,7 @@
 #include "argument.h"
 #include "http.h"
 #include "bench.h"
+#include "ssl.h"
 #include "thpool/thpool.h"
 #include "copool/copool.h"
 #include "copool/netio.h"
@@ -14,6 +15,7 @@ int main(int argc, char **argv)
 {
     stats st;
 	int time {0};
+	SSL_CTX *ctx;
 
 	/* parse argument */
     argument arg;
@@ -21,6 +23,10 @@ int main(int argc, char **argv)
 
 	/* signals */
     signal(SIGPIPE, SIG_IGN);
+
+	/* ssl */
+	ssl::openssl::init_ssl_env();
+	ctx = ssl::openssl::new_ssl_ctx();
 
 	/* build request */
 	std::vector<char> buf;
@@ -31,13 +37,14 @@ int main(int argc, char **argv)
 	}
 	else
 	{
+		req.set_version(HTTP11);
 		req.build_request(buf);
 	}
-    
+
 	/* running */
 	netco_pool pool(utils::cpu_num(4));
 	pool.init();
-	pool.submit(http10_bench, buf, inet_addr("127.0.0.1"), 8888);
+	pool.submit(ssl_bench, ctx, buf, inet_addr("220.181.38.149"), 443);
 	pool.run();
 
 	/* stat */

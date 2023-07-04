@@ -14,6 +14,7 @@ public:
 		m_buf = std::make_unique<char[]>(capacity);
 	}
 
+	void clear() { m_size=0;m_chunked_size=0; }
 	char *data() { return m_buf.get(); }
 	size_t size() { return m_size; }
 	size_t chunk_size() { return m_chunked_size; }

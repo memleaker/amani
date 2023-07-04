@@ -3,3 +3,6 @@ amani
 /tests/CMakeFiles/
 /tests/cmake_install.cmake
 /tests/Makefile
+/tests/copool-echoserver
+/tests/http-test
+/tests/thpool-test

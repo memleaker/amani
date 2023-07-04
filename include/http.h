@@ -10,8 +10,8 @@
 
 static std::map<http_version, std::string> version_str = 
 {
-	{HTTP10, "HTTP1.0"},
-	{HTTP11, "HTTP1.1"},
+	{HTTP10, "HTTP/1.0"},
+	{HTTP11, "HTTP/1.1"},
 };
 
 static std::map<http_method, std::string> method_str = 
@@ -20,12 +20,20 @@ static std::map<http_method, std::string> method_str =
 	{POST, "POST"},
 };
 
+static std::map<http_version, std::string> conn_str = 
+{
+	{HTTP10, "closed"},
+	{HTTP11, "keep-alive"},
+};
+
 class http_request
 {
 public:
 	http_request() : m_uri("/"), m_method(GET), m_version(HTTP11)
 	{
-		m_header["User-Agent"] = "amaniv1.0";	
+		m_header["User-Agent"] = "amani/1.0";
+		m_header["Host"] = "127.0.0.1";
+		m_header["Accept"] = "*/*";
 	}
 
     void set_uri(const std::string &uri) { m_uri = uri; }

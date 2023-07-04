@@ -13,6 +13,8 @@
 #include <iostream>
 
 #include <unistd.h>
+#include <sys/epoll.h>
+#include <sys/types.h>
 
 #include "thpool/thpool.h"
 #include "epoller.h"
@@ -108,10 +110,10 @@ public:
 			for (i = 0; i < events; i++)
 			{
 				ep.del_fd(evs[i].data.fd);
-				task.handle_.promise().need_block = false;
-				// resume schedule
-				task_que.enqueue(iowait_tasks[evs[i].data.fd]);
 
+				// resume schedule
+				task.handle_.promise().need_block = false;
+				task_que.enqueue(iowait_tasks[evs[i].data.fd]);
 				iowait_tasks.erase(evs[i].data.fd);
 			}
 
