@@ -23,6 +23,7 @@ netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint
 	netio_task task;
 	buffer buf(8192);
 	http_response resp;
+	struct timeval start, end;
 	ssize_t nleft, nwrite, n;
 
 	memset(&addr, 0, sizeof(addr));
@@ -48,6 +49,8 @@ netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint
 			co_return -1;
 		}
 
+		::gettimeofday(&start, NULL);
+
 		/* send data */
 		for (nleft = req.size(), nwrite = 0; nleft > 0; )
 		{
@@ -62,6 +65,8 @@ netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint
 			nleft  -= n;
 		}
 
+		st.inc_request();
+
 		/* recv response */
 		for (;;)
 		{
@@ -69,13 +74,12 @@ netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint
 			if (n < 0)
 			{
 				std::cerr << "read response failed: " << std::strerror(errno) << std::endl;
-				// 统计信息
 				co_return -1;
 			}
 			else if (n == 0)
 			{
 				// connection closed by peer
-				// 统计信息
+				std::cout << "closed" << std::endl;
 				co_return 0;
 			}
 
@@ -85,7 +89,10 @@ netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint
 				continue;
 			else if (ret == 0)
 			{
-				/* 统计信息 */
+				::gettimeofday(&end, NULL);
+				st.inc_response();
+				st.inc_status(resp.status_code);
+				st.set_rtt(utils::rtt(start, end));
 				std::cout << "code: " << resp.status_code << std::endl;
 				break;
 			}
@@ -98,7 +105,7 @@ netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint
 
 		buf.clear();
 		close(sock);
-		sleep(1);
+		usleep(100);
 	}
 }
 
@@ -111,6 +118,7 @@ netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint
 	buffer buf(8192);
 	http_response resp;
 	ssize_t nleft, nwrite, n;
+	struct timeval start, end;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
@@ -135,6 +143,8 @@ netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint
 
 	for (;;)
 	{
+		::gettimeofday(&start, NULL);
+
 		/* send data */
 		for (nleft = req.size(), nwrite = 0; nleft > 0; )
 		{
@@ -149,6 +159,8 @@ netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint
 			nleft  -= n;
 		}
 
+		st.inc_request();
+
 		/* recv response */
 		for (;;)
 		{
@@ -156,13 +168,12 @@ netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint
 			if (n < 0)
 			{
 				std::cerr << "read response failed: " << std::strerror(errno) << std::endl;
-				// 统计信息
 				co_return -1;
 			}
 			else if (n == 0)
 			{
 				// connection closed by peer
-				// 统计信息
+				std::cout << "conn closed" << std::endl;
 				co_return 0;
 			}
 
@@ -172,8 +183,11 @@ netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint
 				continue;
 			else if (ret == 0)
 			{
-				/* 统计信息 */
-				std::cout << "code: " << resp.status_code << std::endl;
+				::gettimeofday(&end, NULL);
+				st.inc_response();
+				st.inc_status(resp.status_code);
+				st.set_rtt(utils::rtt(start, end));
+				//debug std::cout << "code: " << resp.status_code << std::endl;
 				break;
 			}
 			else

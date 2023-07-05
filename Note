@@ -1,0 +1,11 @@
+
+
+### Nginx
+
+Nginx一条TCP链接默认支持接收100个请求, 再发请求 Nginx 将断开连接, 通过keepalive_requests可修改该设置
+
+```
+http {
+	keepalive_requests 1000000000;
+}
+```
