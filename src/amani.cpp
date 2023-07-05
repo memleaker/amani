@@ -45,8 +45,9 @@ int main(int argc, char **argv)
 	netco_pool pool(utils::cpu_num(4));
 	pool.init();
 	// pool.submit(ssl_bench, ctx, buf, st, inet_addr("220.181.38.149"), 443);
-	// pool.submit(http11_bench, buf, st, inet_addr("127.0.0.1"), 80);
-	pool.submit(http10_bench, buf, st, inet_addr("127.0.0.1"), 80);
+	pool.submit(http11_bench, buf, st, inet_addr("127.0.0.1"), 80);
+	pool.submit(http11_bench, buf, st, inet_addr("127.0.0.1"), 80);
+	// pool.submit(http10_bench, buf, st, inet_addr("127.0.0.1"), 80);
 	pool.run();
 
 	/* stat */

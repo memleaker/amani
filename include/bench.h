@@ -93,7 +93,7 @@ netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint
 				st.inc_response();
 				st.inc_status(resp.status_code);
 				st.set_rtt(utils::rtt(start, end));
-				std::cout << "code: " << resp.status_code << std::endl;
+				// debug std::cout << "code: " << resp.status_code << std::endl;
 				break;
 			}
 			else
@@ -105,7 +105,6 @@ netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint
 
 		buf.clear();
 		close(sock);
-		usleep(100);
 	}
 }
 
@@ -129,7 +128,7 @@ netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint
 	sock = amani_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock == -1)
 	{
-		std::cerr << "createa socket failed: " << std::strerror(errno) << std::endl;
+		std::cerr << "create socket failed: " << std::strerror(errno) << std::endl;
 		co_return -1;
 	}
 
@@ -198,7 +197,6 @@ netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint
 		}
 
 		buf.clear();
-		usleep(1000);
 	}
 }
 

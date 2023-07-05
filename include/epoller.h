@@ -54,7 +54,7 @@ public:
 		int ret;
 
 again:
-		ret = epoll_wait(epoll_fd, evs, events, 50);
+		ret = epoll_wait(epoll_fd, evs, events, 1);
 		if (ret == -1)
 		{
 			if (errno == EINTR)

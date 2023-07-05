@@ -51,7 +51,8 @@ public:
 	netco_pool(unsigned int threadnum) : 
 		terminated(true), threads(threadnum), thpool(threadnum), \
 		eps(std::vector<epoller>(threadnum)), \
-		task_queues(std::vector<task_queue<netio_task>>(threadnum)) {}
+		task_queues(std::vector<task_queue<netio_task>>(threadnum)), \
+		iowait_tasks(std::vector<std::map<int, netio_task>>(threadnum)) {}
 
 	void init()
 	{
@@ -84,7 +85,7 @@ public:
 		// submit task co_run
 		for (unsigned int i = 0; i < threads; i++)
 		{
-			thpool.submit([i, this] {co_run(task_queues[i], eps[i]);});
+			thpool.submit([i, this] {co_run(task_queues[i], iowait_tasks[i], eps[i]);});
 		}
 	}
 
@@ -97,7 +98,7 @@ public:
 		// destroy epoll
 	}
 
-	void co_run(task_queue<netio_task>& task_que, epoller& ep)
+	void co_run(task_queue<netio_task>& task_que, std::map<int, netio_task>& iotasks, epoller& ep)
 	{
 		int events, i;
 		netio_task task;
@@ -112,21 +113,22 @@ public:
 				ep.del_fd(evs[i].data.fd);
 
 				// resume schedule
-				task.handle_.promise().need_block = false;
-				task_que.enqueue(iowait_tasks[evs[i].data.fd]);
-				iowait_tasks.erase(evs[i].data.fd);
+				task_que.enqueue(iotasks[evs[i].data.fd]);
+				iotasks.erase(evs[i].data.fd);
 			}
 
-			/* get task */
+			/* 从任务队列中取出任务 task */
 			if (!task_que.dequeue(task))
 			{
-				usleep(10000);
+				usleep(100);
 				continue;
 			}
 
-			/* resume */
+			/* 恢复任务运行 */
+			task.handle_.promise().need_block = false;
 			task.handle_.resume();
 
+			/* 如果任务结束, 则销毁 */
 			if (task.handle_.done())
 			{
 				// 结束时需要挂起, 因此需要手动销毁
@@ -136,16 +138,15 @@ public:
 				continue;
 			}
 
+			/* 如果任务需要阻塞 */
 			if (task.handle_.promise().need_block)
 			{
-				// add fd to epoll
 				ep.add_fd(task.handle_.promise().fd, task.handle_.promise().flags);
-
-				iowait_tasks[task.handle_.promise().fd] = task;
+				iotasks[task.handle_.promise().fd] = task;
 			}
 			else
 			{
-				// requeue task to continue schedle
+				/* 不需阻塞, 继续入队 */
 				task_que.enqueue(task);
 			}
 		}
@@ -158,7 +159,7 @@ private:
 	thread_pool thpool;
 	std::vector<epoller> eps;
 	std::vector<task_queue<netio_task>> task_queues;
-	std::map<int, netio_task> iowait_tasks;
+	std::vector<std::map<int, netio_task>> iowait_tasks;
 };
 
 #endif
