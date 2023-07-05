@@ -94,8 +94,6 @@ public:
 		terminated = true;
 
 		thpool.shutdown();
-
-		// destroy epoll
 	}
 
 	void co_run(task_queue<netio_task>& task_que, std::map<int, netio_task>& iotasks, epoller& ep)

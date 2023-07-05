@@ -30,13 +30,13 @@ public:
     {
 		epoll_event ev;
 
-		// 事件只触发一次，不然task_queu里面会push好几个任务啦
+		// 事件只触发一次，不然task_queue里面会push好几个任务啦
 		ev.events = events | EPOLLONESHOT;
 		ev.data.fd = fd;
 
     	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev))
 		{
-			perror("epoll_ctl");
+			std::cerr << "error: epoll add fd " << std::strerror(errno) << std::endl;
 			std::exit(1);
 		}
 		
