@@ -12,7 +12,7 @@
 class stats
 {
 public:
-	stats() : req(0),resp(0) {}
+	stats() : req(0), resp(0) {}
 
 private:
     uint64_t req;

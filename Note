@@ -9,3 +9,11 @@ http {
 	keepalive_requests 1000000000;
 }
 ```
+
+Nginx支持的最大连接数由 work_processes(工作进程数量) 和 work_connections(一个进程最大链接数量) 决定
+
+```
+event {
+	work_connections xxx;
+}
+```
