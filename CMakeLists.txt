@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 
 # test 需要放在头部
-add_subdirectory(${CMAKE_SOURCE_DIR}/tests ${CMAKE_SOURCE_DIR}/tests)
+# add_subdirectory(${CMAKE_SOURCE_DIR}/tests ${CMAKE_SOURCE_DIR}/tests)
 
 # project
 project(amani)
@@ -16,7 +16,7 @@ include_directories(include)
 file(GLOB SOURCES "src/*")
 
 # compiler
-set(CMAKE_CXX_COMPILER "/usr/bin/g++-10")
+set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
 # compiler flag
 set(CMAKE_BUILD_TYPE Release)

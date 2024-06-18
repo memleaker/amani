@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.0)
+
 project(tests)
 
 # cpp standard
@@ -7,7 +9,7 @@ set(CMAKE_CXX_STANDARD 20)
 include_directories(../include)
 
 # compiler
-set(CMAKE_CXX_COMPILER "/usr/bin/g++-10")
+set(CMAKE_CXX_COMPILER "/usr/bin/g++")
 
 # compiler flag
 set(CMAKE_BUILD_TYPE Release)
