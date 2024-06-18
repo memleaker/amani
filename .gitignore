@@ -1,9 +1,12 @@
 /build/CMakeFiles/
 /build/cmake_install.cmake
 /build/Makefile
-/build/CmakeCache.txt
+/build/CMakeCache.txt
 amani
 /tests/build/CMakeFiles/
 /tests/build/cmake_install.cmake
 /tests/build/Makefile
-/tests/build/CmakeCache.txt
+/tests/build/CMakeCache.txt
+/tests/build/copool-echoserver
+/tests/build/http-test
+/tests/build/thpool-test
