@@ -27,7 +27,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_executable(amani ${SOURCES})
 
 # ld
-target_link_libraries(amani pthread ssl crypto)
+target_link_libraries(amani pthread)
+#target_link_libraries(amani pthread ssl crypto)
 
 # install
 install(FILES amani DESTINATION /usr/bin/amani)

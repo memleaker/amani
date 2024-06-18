@@ -24,7 +24,6 @@ public:
     enum http_method meth;
 	url urlinfo;
 	std::string urlstr;
-    std::string reqfile;
 
 	std::map<std::string, std::string> req_header;
 };

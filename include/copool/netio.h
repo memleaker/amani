@@ -13,8 +13,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#ifdef HTTPS_SUPPORT
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#endif
 
 #include "copool.h"
 
@@ -270,6 +272,8 @@ private:
 	bool    m_need_suspend;
 };
 
+
+#ifdef HTTPS_SUPPORT
 /* ssl */
 class async_sslconnect {
 public:
@@ -454,5 +458,7 @@ private:
 	ssize_t m_nbytes;
 	bool    m_need_suspend;
 };
+
+#endif
 
 #endif

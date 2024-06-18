@@ -6,8 +6,10 @@
 #include <cstddef>
 #include <sys/time.h>
 
+#ifdef HTTPS_SUPPORT
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#endif
 
 #include "stats.h"
 #include "utils.h"
@@ -200,6 +202,7 @@ netio_task http11_bench(std::vector<char>& req, stats& st, uint32_t ipaddr, uint
 	}
 }
 
+#ifdef HTTPS_SUPPORT
 netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, stats &st, uint32_t ipaddr, uint16_t port)
 {
 	int sock, ret;
@@ -317,5 +320,6 @@ netio_task ssl_bench(SSL_CTX* ctx, std::vector<char>& req, stats &st, uint32_t i
 		usleep(1000000);
 	}
 }
+#endif
 
 #endif

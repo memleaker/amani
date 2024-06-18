@@ -2,7 +2,6 @@
 
 static struct option long_options[] = {
     { "url",     no_argument, NULL, 'i' },
-    { "reqfile", no_argument, NULL, 'r' },
     { "http10",  no_argument, NULL, 0 },
     { "get",     no_argument, NULL, 1 },
     { "post",    no_argument, NULL, 2 },
@@ -12,7 +11,7 @@ void argument::parse(int argc, char **argv)
 {
     int opt, opidx;
 
-    while (-1 != (opt = getopt_long(argc, argv, "i:r:c:d:h", long_options, &opidx)))
+    while (-1 != (opt = getopt_long(argc, argv, "i:c:d:h", long_options, &opidx)))
     {
         switch (opt)
 	{
@@ -30,9 +29,6 @@ void argument::parse(int argc, char **argv)
 			std::exit(1);
 		}
 		
-		break;
-	case 'r':
-		reqfile = optarg;
 		break;
 	case 'i':
 		urlstr = optarg;
