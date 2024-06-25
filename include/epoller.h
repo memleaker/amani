@@ -54,6 +54,7 @@ public:
 		int ret;
 
 again:
+		/* 等待1毫秒 */
 		ret = epoll_wait(epoll_fd, evs, events, 1);
 		if (ret == -1)
 		{

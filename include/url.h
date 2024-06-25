@@ -12,7 +12,7 @@
 class url
 {
 public:
-	url() : port(0), proto("http"), ipaddr("0.0.0.0") {}
+	url() : port(80), proto("http"), ipaddr("127.0.0.1") {}
 	void parse(std::string url);
 
 public:
