@@ -155,9 +155,15 @@ private:
 
 	unsigned int threads;
 	thread_pool thpool;
+
+	/* one thread one epoller */
 	std::vector<epoller> eps;
-	std::vector<task_queue<netio_task>> task_queues;
+
+	/* sockfd with iowait tasks */
 	std::vector<std::map<int, netio_task>> iowait_tasks;
+
+	/* one thread one task queeue */
+	std::vector<task_queue<netio_task>> task_queues;
 };
 
 #endif

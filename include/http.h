@@ -29,6 +29,7 @@ static std::map<http_version, std::string> conn_str =
 class http_request
 {
 public:
+    /* Default Request: GET / HTTP1.1, Target: 127.0.0.1 */
 	http_request() : m_uri("/"), m_method(GET), m_version(HTTP11)
 	{
 		m_header["User-Agent"] = "amani/1.0";
