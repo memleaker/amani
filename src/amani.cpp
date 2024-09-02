@@ -9,7 +9,7 @@
 #include "bench.h"
 #include "thpool/thpool.h"
 #include "copool/copool.h"
-#include "copool/netio.h"
+#include "copool/netio_api.h"
 
 #ifdef HTTPS_SUPPORT
 #include "ssl.h"
@@ -72,13 +72,10 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/* 5. Start Running */
-	pool.run();
-
-	/* 6. Print stat Util end of time */
+	/* 5. Print stat Util end of time */
 	st.print_status(arg.time, arg.urlstr, arg.urlinfo.ipaddr);
 
-	/* 7. stop */
+	/* 6. stop */
 	pool.shutdown();
     return 0;
 }

@@ -45,6 +45,7 @@ public:
 class thread_pool
 {
 private:
+    /* 线程工作类 */
     class thread_worker
     {
     private:
@@ -52,6 +53,7 @@ private:
     public:
         thread_worker(thread_pool *pool) : m_pool(pool) {}
 
+        /* 重载()运算符执行: 从队列中取任务并执行 */
         void operator()()
         {
             bool dequeued;
@@ -77,7 +79,7 @@ public:
     thread_pool(const int n_threads = 4)
         : m_shutdown(false), m_threads(std::vector<std::thread>(n_threads)) {}
 
-    // no copy
+    /* 禁用拷贝和移动 */
     thread_pool(const thread_pool &) = delete;
     thread_pool(thread_pool &&) = delete;
     thread_pool &operator=(const thread_pool &) = delete;
@@ -99,27 +101,27 @@ public:
         for (auto &th : m_threads)
         {
             if (th.joinable())
-            {
                 th.join();
-            }
         }
     }
 
-    template <typename F, typename... Args>
-    auto submit(F &&f, Args &&...args) -> std::future<decltype(f(args...))>
-    {
-        std::function<decltype(f(args...))()> func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-        auto task_ptr = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
-        std::function<void()> warpper_func = [task_ptr]()
+	template <typename F, typename... Args>
+	void submit(F&& f, Args&&... args)
 	{
-		(*task_ptr)();
-	};
+        /* 注意: 1. decltype(f(args...)) (), 分析获取到返回值类型
+                2. 然后加上()无参数, 参数已被bind, 不需要额外参数 */
+		std::function<decltype(f(args...)) ()> func = \
+			std::bind(std::forward<F>(f), std::forward<Args>(args)...);
 
-        m_queue.enqueue(warpper_func);
-        m_conditional_lock.notify_one();
+        /* 使用 lambda 封装任务为  void()类型 */ 
+		std::function<void()> wrapper_func = [func]() {
+			func();
+		};
 
-        return task_ptr->get_future();
-    }
+        /* 任务入队 */
+		m_queue.enqueue(wrapper_func);
+		m_conditional_lock.notify_one();
+	}
 
 private:
     bool m_shutdown;

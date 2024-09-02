@@ -15,7 +15,7 @@
 #include "utils.h"
 #include "http.h"
 
-#include "copool/netio.h"
+#include "copool/netio_api.h"
 
 netio_task http10_bench(std::vector<char>& req, stats &st, uint32_t ipaddr, uint16_t port)
 {

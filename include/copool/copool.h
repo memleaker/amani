@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <mutex>
+#include <set>
 #include <map>
 #include <future>
 #include <thread>
@@ -16,136 +17,103 @@
 #include <sys/epoll.h>
 #include <sys/types.h>
 
-#include "thpool/thpool.h"
 #include "epoller.h"
-
-#define MAX_EVENTS 1024
-
-class netio_task {
-public:
-    class promise_type {
-    public:
-		promise_type() : fd(-1), need_block(false), flags(EPOLLIN) {}
-
-        netio_task get_return_object()
-        { return {netio_task(std::coroutine_handle<netio_task::promise_type>::from_promise(*this))}; }
-        std::suspend_always initial_suspend() { return {}; }  // always suspend at start
-        std::suspend_always final_suspend() noexcept { return {}; }
-		void return_value(int status) {ret_status = status;}
-        void unhandled_exception() { throw; }
-
-    public:
-		int fd;
-		int ret_status;
-		bool need_block;
-		uint32_t flags;
-    };
-
-public:
-    std::coroutine_handle<netio_task::promise_type> handle_;
-};
+#include "thpool/thpool.h"
+#include "netio_task.h"
 
 class netco_pool
 {
 public:
 	netco_pool(unsigned int threadnum) : 
-		terminated(true), threads(threadnum), thpool(threadnum), \
-		eps(std::vector<epoller>(threadnum)), \
-		task_queues(std::vector<task_queue<netio_task>>(threadnum)), \
-		iowait_tasks(std::vector<std::map<int, netio_task>>(threadnum)) {}
+		terminated(false), threads(threadnum), thpool(threadnum), \
+		task_queues(std::vector<task_queue<netio_task>>(threadnum)) {}
 
 	void init()
 	{
+		/* 0. 创建epoll线程 */
+		poll = new epoller();
+		std::thread([this](){
+			this->poll_run();
+		});
+
+		/* 1. 启动线程池, 等待任务 */
 		thpool.init();
 
-		for (auto &ep : eps)
+		/* 2. 向线程池的工作线程提交工作任务
+		      任务为调度用户的协程
+		 */
+		for (unsigned int i = 0; i < threads; i++)
 		{
-			ep.init();
+			thpool.submit([i, this] {co_run(task_queues[i], poll);});
 		}
 	}
 
    	template <typename F, typename... Args>
-	netio_task submit(F &&f, Args &&...args)
+	void submit(F &&f, Args &&...args)
 	{
 		static unsigned int thid = 0;
 
-		netio_task task = f(args...);
-
-		// 刚启动时即使其挂起, 获取到返回的 handle, 便于控制
-		task_queues[thid++ % threads].enqueue(task);
-
-		return task;
+		/* 
+		 1. submit 时, 直接运行协程, 由于协程设置启动时挂起
+		    即可在这里取到协程的handle
+		 2. 取到handle, 将返回的netio_task存储起来, 方便对协程进行控制(恢复)
+		 3. 通过thid, 将协程均匀的放在多个线程中
+		*/
+		netio_task task_handle = f(args...);
+		task_queues[thid++ % threads].enqueue(task_handle);
 	}
 
-	void run()
-	{
-		/* running */
-		terminated = false;
-
-		// submit task co_run
-		for (unsigned int i = 0; i < threads; i++)
-		{
-			thpool.submit([i, this] {co_run(task_queues[i], iowait_tasks[i], eps[i]);});
-		}
-	}
-
-	void shutdown()
+	void shutdown(void)
 	{
 		terminated = true;
-
 		thpool.shutdown();
 	}
 
-	void co_run(task_queue<netio_task>& task_que, std::map<int, netio_task>& iotasks, epoller& ep)
+	void poll_run(void)
 	{
-		int events, i;
-		netio_task task;
-		epoll_event evs[MAX_EVENTS];
+		while (terminated)
+		{
+			if (poll->ioevent_handle() == -1) {
+				LOG_ERROR << "poll thread exit!!!" << std::endl;
+				return ;
+			}
+		}
+	}
+
+	void co_run(task_queue<netio_task>& task_que, poller* poll)
+	{
+		netio_task co_task;
 
 		while (!terminated)
 		{
-			/* check io */
-			events = ep.wait(evs, MAX_EVENTS);
-			for (i = 0; i < events; i++)
-			{
-				ep.del_fd(evs[i].data.fd);
-
-				// resume schedule
-				task_que.enqueue(iotasks[evs[i].data.fd]);
-				iotasks.erase(evs[i].data.fd);
-			}
-
-			/* 从任务队列中取出任务 task */
-			if (!task_que.dequeue(task))
+			/* 从队列中取出任务 */
+			if (!task_que.dequeue(co_task))
 			{
 				usleep(100);
 				continue;
 			}
 
-			/* 恢复任务运行 */
-			task.handle_.promise().need_block = false;
-			task.handle_.resume();
-
-			/* 如果任务结束, 则销毁 */
-			if (task.handle_.done())
+			if (co_task.handle_.promise().run_state == CO_RUNNING)
 			{
-				// 结束时需要挂起, 因此需要手动销毁
-				// 如果结束时不挂起, 则resume返回后handle就已经destroy(), 下面再使用不合法了
-				task.handle_.destroy();
+				/* 恢复协程运行 */
+				co_task.handle_.resume();
 
-				continue;
-			}
+				/* 协程恢复后再次挂起或返回，如果协程结束, 则销毁 */
+				if (co_task.handle_.done())
+				{
+					// 结束时需要挂起, 因此需要手动销毁
+					// 如果结束时不挂起, 则resume返回后handle就已经destroy(), 下面再使用不合法了
+					co_task.handle_.destroy();
 
-			/* 如果任务需要阻塞 */
-			if (task.handle_.promise().need_block)
-			{
-				ep.add_fd(task.handle_.promise().fd, task.handle_.promise().flags);
-				iotasks[task.handle_.promise().fd] = task;
-			}
-			else
-			{
-				/* 不需阻塞, 继续入队 */
-				task_que.enqueue(task);
+					// 不需要删除epoll中的fd, 当close(fd)时，会自动从epoll中移除
+					continue;
+				}
+
+				/* 如果任务需要IO阻塞 */
+				if (co_task.handle_.promise().run_state == CO_IOWAIT)
+				{
+					poll->ioevent_add(&co_task, co_task.handle_.promise().events);
+				}
 			}
 		}
 	}
@@ -156,11 +124,8 @@ private:
 	unsigned int threads;
 	thread_pool thpool;
 
-	/* one thread one epoller */
-	std::vector<epoller> eps;
-
-	/* sockfd with iowait tasks */
-	std::vector<std::map<int, netio_task>> iowait_tasks;
+	/* epoller */
+	poller *poll;
 
 	/* one thread one task queeue */
 	std::vector<task_queue<netio_task>> task_queues;

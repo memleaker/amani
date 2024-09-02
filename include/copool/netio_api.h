@@ -75,8 +75,8 @@ public:
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
-		handle.promise().flags = EPOLLOUT;
-		handle.promise().need_block = true;
+		handle.promise().events = EPOLLOUT;
+		handle.promise().run_state = CO_IOWAIT;
 	}
 
     ssize_t await_resume()
@@ -123,8 +123,8 @@ public:
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
-		handle.promise().flags = EPOLLIN;
-		handle.promise().need_block = true;
+		handle.promise().events = EPOLLIN;
+		handle.promise().run_state = CO_IOWAIT;
 	}
 
     ssize_t await_resume()
@@ -183,8 +183,8 @@ public:
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
-		handle.promise().flags = EPOLLIN;
-		handle.promise().need_block = true;
+		handle.promise().events = EPOLLIN;
+		handle.promise().run_state = CO_IOWAIT;
 	}
 
     ssize_t await_resume()
@@ -242,8 +242,8 @@ public:
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
-		handle.promise().flags = EPOLLOUT;
-		handle.promise().need_block = true;
+		handle.promise().events = EPOLLOUT;
+		handle.promise().run_state = CO_IOWAIT;
 	}
 
     ssize_t await_resume()
@@ -271,7 +271,6 @@ private:
 	ssize_t m_nbytes;
 	bool    m_need_suspend;
 };
-
 
 #ifdef HTTPS_SUPPORT
 /* ssl */
@@ -311,8 +310,8 @@ public:
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
-		handle.promise().flags = m_flag;
-		handle.promise().need_block = true;
+		handle.promise().events = m_flag;
+		handle.promise().run_state = CO_IOWAIT;
 	}
 
     ssize_t await_resume()
@@ -379,8 +378,8 @@ public:
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
-		handle.promise().flags = m_flag;
-		handle.promise().need_block = true;
+		handle.promise().events = m_flag;
+		handle.promise().run_state = CO_IOWAIT;
 	}
 
     ssize_t await_resume()
@@ -437,8 +436,8 @@ public:
     void await_suspend(std::coroutine_handle<netio_task::promise_type> handle)
 	{
 		handle.promise().fd = m_fd;
-		handle.promise().flags = m_flag;
-		handle.promise().need_block = true;
+		handle.promise().events = m_flag;
+		handle.promise().run_state = CO_IOWAIT;
 	}
 
     ssize_t await_resume()
