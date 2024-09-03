@@ -81,9 +81,9 @@ public:
 
     /* 禁用拷贝和移动 */
     thread_pool(const thread_pool &) = delete;
-    thread_pool(thread_pool &&) = delete;
+    thread_pool(thread_pool &&) noexcept = delete;
     thread_pool &operator=(const thread_pool &) = delete;
-    thread_pool &operator=(thread_pool &&) = delete;
+    thread_pool &operator=(thread_pool &&) noexcept = delete;
 
     void init(void)
     {

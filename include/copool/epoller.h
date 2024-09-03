@@ -11,7 +11,7 @@
 #include <sys/epoll.h>
 
 #include "poller.h"
-#include "logger.h"
+#include "logger/logger.h"
 
 class epoller : public poller
 {
@@ -24,7 +24,7 @@ public:
 	}
 	virtual ~epoller() noexcept override { ::close(epoll_fd); }
 
-	int ioevent_add(netio_task* task, uint32_t events) override
+	virtual int ioevent_add(netio_task* task, uint32_t events) override
 	{
 		int fd, ret;
 		epoll_event ev;
@@ -61,12 +61,12 @@ public:
 	}
 
 	/* 当关闭fd时, 会自动从epoll中移除, 因此该函数不常调用 */ 
-	int ioevent_del(int fd) override
+	virtual int ioevent_del(int fd) override
 	{
 		return epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
 	}
 
-    int ioevent_handle(void) override
+    virtual int ioevent_handle(void) override
     {
 		int i, n;
 		netio_task *task;

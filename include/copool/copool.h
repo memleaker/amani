@@ -3,12 +3,12 @@
 
 #include <cstdlib>
 #include <mutex>
-#include <set>
-#include <map>
+#include <list>
 #include <future>
 #include <thread>
 #include <utility>
 #include <vector>
+#include <memory>
 #include <coroutine>
 #include <functional>
 #include <iostream>
@@ -26,15 +26,21 @@ class netco_pool
 public:
 	netco_pool(unsigned int threadnum) : 
 		terminated(false), threads(threadnum), thpool(threadnum), \
-		task_queues(std::vector<task_queue<netio_task>>(threadnum)) {}
+		task_queues(std::vector<std::list<netio_task>>(threadnum)) {}
 
-	void init()
+    /* @brief 禁用拷贝和移动 */
+    netco_pool(const netco_pool &) = delete;
+    netco_pool(netco_pool &&) noexcept = delete;
+    netco_pool &operator=(const netco_pool &) = delete;
+    netco_pool &operator=(netco_pool &&) noexcept = delete;
+
+public:
+	/* @brief 初始化协程池 */
+	void init(void)
 	{
 		/* 0. 创建epoll线程 */
-		poll = new epoller();
-		std::thread([this](){
-			this->poll_run();
-		});
+		poll = std::make_shared<epoller>();
+		std::thread([this]() { this->poll_run(); });
 
 		/* 1. 启动线程池, 等待任务 */
 		thpool.init();
@@ -48,6 +54,18 @@ public:
 		}
 	}
 
+	/* @brief 关闭协程池 */
+	void shutdown(void)
+	{
+		terminated = true;
+		thpool.shutdown();
+	}
+
+	/* 
+	 * @brief 向协程池提交任务
+	 * @param f	待执行任务的函数名
+	 * @param args 待执行任务的参数
+	 */
    	template <typename F, typename... Args>
 	void submit(F &&f, Args &&...args)
 	{
@@ -60,59 +78,68 @@ public:
 		 3. 通过thid, 将协程均匀的放在多个线程中
 		*/
 		netio_task task_handle = f(args...);
-		task_queues[thid++ % threads].enqueue(task_handle);
+		task_queues[thid++ % threads].emplace_back(task_handle);
 	}
 
-	void shutdown(void)
-	{
-		terminated = true;
-		thpool.shutdown();
-	}
-
+	/* 
+	 * @brief 对协程IO事件进行监控, 发生IO事件时修改协程状态
+	 */
 	void poll_run(void)
 	{
 		while (terminated)
 		{
-			if (poll->ioevent_handle() == -1) {
+			if (poll->ioevent_handle() == -1)
+			{
 				LOG_ERROR << "poll thread exit!!!" << std::endl;
 				return ;
 			}
 		}
 	}
 
-	void co_run(task_queue<netio_task>& task_que, poller* poll)
+	/* 
+	 * @brief 对协程进行调度, 销毁运行结束的协程, 处理协程IO事件
+	 * @param task_que 保存该线程管理的所有协程
+	 * @param poll IO多路复用对象，用于监控IO事件
+	 */
+	void co_run(std::list<netio_task>& task_que, std::shared_ptr<poller> poll)
 	{
-		netio_task co_task;
-
 		while (!terminated)
 		{
-			/* 从队列中取出任务 */
-			if (!task_que.dequeue(co_task))
+			if (task_que.empty())
 			{
 				usleep(100);
 				continue;
 			}
 
-			if (co_task.handle_.promise().run_state == CO_RUNNING)
+			/* 从队列中取出任务执行 */
+			for (auto it = task_que.begin(); \
+				((!terminated) && (it != task_que.end())); it++)
 			{
-				/* 恢复协程运行 */
-				co_task.handle_.resume();
-
-				/* 协程恢复后再次挂起或返回，如果协程结束, 则销毁 */
-				if (co_task.handle_.done())
+				if (it->handle_.promise().run_state == CO_RUNNING)
 				{
-					// 结束时需要挂起, 因此需要手动销毁
-					// 如果结束时不挂起, 则resume返回后handle就已经destroy(), 下面再使用不合法了
-					co_task.handle_.destroy();
+					/* 恢复协程运行 */
+					it->handle_.resume();
 
-					// 不需要删除epoll中的fd, 当close(fd)时，会自动从epoll中移除
-					continue;
-				}
+					/* 协程恢复后再次挂起或返回，如果协程结束, 则销毁 */
+					if (it->handle_.done())
+					{
+						/* 设置协程在结束时挂起, 因为下面还要使用
+						 * 如果结束时不挂起, 则resume返回后handle就已经销毁, 后面不能再使用
+						 * 设置了结束时挂起, 需要手动销毁协程: 调用 destroy()
+						 */
+						it->handle_.destroy();
+						task_que.erase(it);
+						continue;
+					}
 
-				/* 如果任务需要IO阻塞 */
-				if (co_task.handle_.promise().run_state == CO_IOWAIT)
-				{
-					poll->ioevent_add(&co_task, co_task.handle_.promise().events);
+					/* 如果任务需要IO阻塞, 将IO任务交由Epoll监控
+					 * 在监控过程中, 该协程不会被调度执行, 直到IO事件发生, 协程状态恢复为RUNNING
+					 */
+					if (it->handle_.promise().run_state == CO_IOWAIT)
+					{
+						/* &*it 取到元素的地址 */
+						poll->ioevent_add(&(*it), it->handle_.promise().events);
+					}
 				}
 			}
 		}
@@ -121,14 +148,15 @@ public:
 private:
 	bool terminated;
 
+	/* threads */
 	unsigned int threads;
 	thread_pool thpool;
 
-	/* epoller */
-	poller *poll;
+	/* poller */
+	std::shared_ptr<poller> poll;
 
 	/* one thread one task queeue */
-	std::vector<task_queue<netio_task>> task_queues;
+	std::vector<std::list<netio_task>> task_queues;
 };
 
 #endif
