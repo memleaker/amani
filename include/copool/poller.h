@@ -5,12 +5,6 @@
 
 #include "netio_task.h"
 
-struct poll_data
-{
-	int fd;
-	void *run_state;
-};
-
 class poller
 {
 public:

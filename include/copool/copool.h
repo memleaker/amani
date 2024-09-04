@@ -25,8 +25,7 @@ class netco_pool
 {
 public:
 	netco_pool(unsigned int threadnum) : 
-		terminated(false), threads(threadnum), thpool(threadnum), \
-		task_queues(std::vector<std::list<netio_task>>(threadnum)) {}
+		terminated(true), threads(threadnum), thpool(threadnum) {}
 
     /* @brief 禁用拷贝和移动 */
     netco_pool(const netco_pool &) = delete;
@@ -38,19 +37,22 @@ public:
 	/* @brief 初始化协程池 */
 	void init(void)
 	{
-		/* 0. 创建epoll线程 */
-		poll = std::make_shared<epoller>();
-		std::thread([this]() { this->poll_run(); });
+		/* 0. 标记协程池运行状态 */
+		terminated = false;
 
-		/* 1. 启动线程池, 等待任务 */
+		/* 1. 创建epoll线程 */
+		poll = std::make_shared<epoller>();
+
+		/* 2. 启动线程池, 等待任务 */
 		thpool.init();
 
-		/* 2. 向线程池的工作线程提交工作任务
-		      任务为调度用户的协程
+		/* 3. 向线程池的工作线程提交工作任务
+		      一个任务为监控IO事件线程，其它为调度用户协程的进程
 		 */
-		for (unsigned int i = 0; i < threads; i++)
+		thpool.submit([this] { this->poll_run(); });
+		for (unsigned int i = 1; i < threads; i++)
 		{
-			thpool.submit([i, this] {co_run(task_queues[i], poll);});
+			thpool.submit([this] {this->co_run();});
 		}
 	}
 
@@ -69,16 +71,13 @@ public:
    	template <typename F, typename... Args>
 	void submit(F &&f, Args &&...args)
 	{
-		static unsigned int thid = 0;
-
 		/* 
 		 1. submit 时, 直接运行协程, 由于协程设置启动时挂起
 		    即可在这里取到协程的handle
 		 2. 取到handle, 将返回的netio_task存储起来, 方便对协程进行控制(恢复)
-		 3. 通过thid, 将协程均匀的放在多个线程中
 		*/
 		netio_task task_handle = f(args...);
-		task_queues[thid++ % threads].emplace_back(task_handle);
+		task_que.enqueue(task_handle);
 	}
 
 	/* 
@@ -98,22 +97,34 @@ public:
 
 	/* 
 	 * @brief 对协程进行调度, 销毁运行结束的协程, 处理协程IO事件
-	 * @param task_que 保存该线程管理的所有协程
+     *        这里使用了一个所有线程公用的任务队列和各自线程独有的任务列表
+	 *        避免多线程使用同一个任务列表时，遍历任务调度时要加锁的情况
+	 * @param task_que 保存用户submit的协程任务
 	 * @param poll IO多路复用对象，用于监控IO事件
 	 */
-	void co_run(std::list<netio_task>& task_que, std::shared_ptr<poller> poll)
+	void co_run(void)
 	{
+		netio_task t;
+		std::list<netio_task> task_list;
+
 		while (!terminated)
 		{
-			if (task_que.empty())
+			/* 0. 从任务队列中取一个任务放到任务列表中 */
+			if (task_que.dequeue(t))
+			{
+				task_list.emplace_back(t);
+			}
+
+			/* 1. 等待任务列表不为空 */
+			if (task_list.empty())
 			{
 				usleep(100);
 				continue;
 			}
 
-			/* 从队列中取出任务执行 */
-			for (auto it = task_que.begin(); \
-				((!terminated) && (it != task_que.end())); it++)
+			/* 2. 从任务列表中取出任务执行 */
+			for (auto it = task_list.begin(); \
+				((!terminated) && (it != task_list.end()));)
 			{
 				if (it->handle_.promise().run_state == CO_RUNNING)
 				{
@@ -128,7 +139,7 @@ public:
 						 * 设置了结束时挂起, 需要手动销毁协程: 调用 destroy()
 						 */
 						it->handle_.destroy();
-						task_que.erase(it);
+						task_list.erase(it++);  /* 传递给erase一个副本, 自身自增 */
 						continue;
 					}
 
@@ -141,6 +152,9 @@ public:
 						poll->ioevent_add(&(*it), it->handle_.promise().events);
 					}
 				}
+
+				/* 为实现遍历中删除节点, 不在for语句中写自增 */
+				it++;
 			}
 		}
 	}
@@ -148,15 +162,15 @@ public:
 private:
 	bool terminated;
 
-	/* threads */
+	/* 线程池 */
 	unsigned int threads;
 	thread_pool thpool;
 
 	/* poller */
 	std::shared_ptr<poller> poll;
 
-	/* one thread one task queeue */
-	std::vector<std::list<netio_task>> task_queues;
+	/* 公用任务队列, 用于submit任务, 以及线程取任务 */
+	task_queue<netio_task> task_que;
 };
 
 #endif

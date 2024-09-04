@@ -77,7 +77,7 @@ private:
 
 public:
     thread_pool(const int n_threads = 4)
-        : m_shutdown(false), m_threads(std::vector<std::thread>(n_threads)) {}
+        : m_shutdown(true), m_threads(std::vector<std::thread>(n_threads)) {}
 
     /* 禁用拷贝和移动 */
     thread_pool(const thread_pool &) = delete;
@@ -87,6 +87,7 @@ public:
 
     void init(void)
     {
+        m_shutdown = false;
         for (auto& th : m_threads)
         {
             th = std::thread(thread_worker(this));
@@ -106,21 +107,26 @@ public:
     }
 
 	template <typename F, typename... Args>
-	void submit(F&& f, Args&&... args)
+	auto submit(F&& f, Args&&... args) -> std::future<decltype(f(args...))>
 	{
         /* 注意: 1. decltype(f(args...)) (), 分析获取到返回值类型
                 2. 然后加上()无参数, 参数已被bind, 不需要额外参数 */
 		std::function<decltype(f(args...)) ()> func = \
 			std::bind(std::forward<F>(f), std::forward<Args>(args)...);
 
+        /* 为实现获取线程池返回值, 使用future特性 */
+        auto task_ptr = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
+
         /* 使用 lambda 封装任务为  void()类型 */ 
-		std::function<void()> wrapper_func = [func]() {
-			func();
+		std::function<void()> wrapper_func = [task_ptr]() {
+			(*task_ptr)();
 		};
 
         /* 任务入队 */
 		m_queue.enqueue(wrapper_func);
 		m_conditional_lock.notify_one();
+
+        return task_ptr->get_future();
 	}
 
 private:
