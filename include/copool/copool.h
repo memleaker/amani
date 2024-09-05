@@ -24,8 +24,10 @@
 class netco_pool
 {
 public:
-	netco_pool(unsigned int threadnum) : 
-		terminated(true), threads(threadnum), thpool(threadnum) {}
+	/* @brief 默认工作线程数量为2, 实际情况会多创建一个线程用于监控IO事件 */
+	netco_pool(unsigned int threadnum = 2) : 
+		terminated(true), sche_threads(threadnum), total_threads(threadnum+1), thpool(threadnum+1),
+		task_queues(std::vector<task_queue<netio_task>>(threadnum)) {}
 
     /* @brief 禁用拷贝和移动 */
     netco_pool(const netco_pool &) = delete;
@@ -47,12 +49,12 @@ public:
 		thpool.init();
 
 		/* 3. 向线程池的工作线程提交工作任务
-		      一个任务为监控IO事件线程，其它为调度用户协程的进程
+		      第一个线程为监控IO事件线程，其它为调度用户协程的进程
 		 */
 		thpool.submit([this] { this->poll_run(); });
-		for (unsigned int i = 1; i < threads; i++)
+		for (unsigned int i = 0; i < sche_threads; i++)
 		{
-			thpool.submit([this] {this->co_run();});
+			thpool.submit([i, this] {this->co_run(task_queues[i]);});
 		}
 	}
 
@@ -71,13 +73,16 @@ public:
    	template <typename F, typename... Args>
 	void submit(F &&f, Args &&...args)
 	{
+		static int thid = 0;
+
 		/* 
 		 1. submit 时, 直接运行协程, 由于协程设置启动时挂起
 		    即可在这里取到协程的handle
 		 2. 取到handle, 将返回的netio_task存储起来, 方便对协程进行控制(恢复)
+		 3. 通过轮循将协程任务均匀的分到调度线程中去
 		*/
 		netio_task task_handle = f(args...);
-		task_que.enqueue(task_handle);
+		task_queues[thid++ % sche_threads].enqueue(task_handle);
 	}
 
 	/* 
@@ -97,20 +102,20 @@ public:
 
 	/* 
 	 * @brief 对协程进行调度, 销毁运行结束的协程, 处理协程IO事件
-     *        这里使用了一个所有线程公用的任务队列和各自线程独有的任务列表
-	 *        避免多线程使用同一个任务列表时，遍历任务调度时要加锁的情况
+     *        这里使用了一个与用户线程交互的任务队列和调度线程独有的任务列表
+	 *        解决了用户线程提交任务和调度线程遍历任务调度的竞争问题
 	 * @param task_que 保存用户submit的协程任务
 	 * @param poll IO多路复用对象，用于监控IO事件
 	 */
-	void co_run(void)
+	void co_run(task_queue<netio_task> &task_que)
 	{
 		netio_task t;
 		std::list<netio_task> task_list;
 
 		while (!terminated)
 		{
-			/* 0. 从任务队列中取一个任务放到任务列表中 */
-			if (task_que.dequeue(t))
+			/* 0. 从任务队列中取任务放到任务列表中 */
+			while (task_que.dequeue(t))
 			{
 				task_list.emplace_back(t);
 			}
@@ -118,7 +123,7 @@ public:
 			/* 1. 等待任务列表不为空 */
 			if (task_list.empty())
 			{
-				usleep(100);
+				usleep(1);
 				continue;
 			}
 
@@ -128,11 +133,19 @@ public:
 			{
 				if (it->handle_.promise().run_state == CO_RUNNING)
 				{
-					/* 恢复协程运行 */
+					/* 恢复协程运行, 协程resume恢复后再次挂起或返回时，resume函数返回 */
 					it->handle_.resume();
 
-					/* 协程恢复后再次挂起或返回，如果协程结束, 则销毁 */
-					if (it->handle_.done())
+					/* 如果任务需要IO阻塞, 将IO任务交由Epoll监控
+					 * 在监控过程中, 该协程不会被调度执行, 直到IO事件发生, 协程状态恢复为RUNNING
+					 */
+					if (it->handle_.promise().run_state == CO_IOWAIT)
+					{
+						/* &*it 取到元素的地址 */
+						poll->ioevent_add(&(*it), it->handle_.promise().events);
+					}
+					/* 如果协程结束, 则销毁 */
+					else if (it->handle_.done())
 					{
 						/* 设置协程在结束时挂起, 因为下面还要使用
 						 * 如果结束时不挂起, 则resume返回后handle就已经销毁, 后面不能再使用
@@ -142,14 +155,10 @@ public:
 						task_list.erase(it++);  /* 传递给erase一个副本, 自身自增 */
 						continue;
 					}
-
-					/* 如果任务需要IO阻塞, 将IO任务交由Epoll监控
-					 * 在监控过程中, 该协程不会被调度执行, 直到IO事件发生, 协程状态恢复为RUNNING
-					 */
-					if (it->handle_.promise().run_state == CO_IOWAIT)
+					else
 					{
-						/* &*it 取到元素的地址 */
-						poll->ioevent_add(&(*it), it->handle_.promise().events);
+						/* 协程既未返回co_return, 也未挂起, 但resume结束了 */
+						LOG_FATAL << "internal error : coroutine stop but not return or suspend" << std::endl;
 					}
 				}
 
@@ -162,15 +171,20 @@ public:
 private:
 	bool terminated;
 
+	/* 调度线程数量和总线程数量 */
+	unsigned int sche_threads;
+	unsigned int total_threads;
+
 	/* 线程池 */
-	unsigned int threads;
 	thread_pool thpool;
 
 	/* poller */
 	std::shared_ptr<poller> poll;
 
-	/* 公用任务队列, 用于submit任务, 以及线程取任务 */
-	task_queue<netio_task> task_que;
+	/* 一个线程一个任务队列, 用于暂存用户提交的协程任务
+	   一个线程一个，避免了多线程使用一个队列发生竞争的情况
+	 */
+	std::vector<task_queue<netio_task>> task_queues;
 };
 
 #endif

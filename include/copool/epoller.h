@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cerrno>
 #include <cstring>
+#include <memory>
 
 #include <unistd.h>
 #include <sys/epoll.h>
@@ -70,10 +71,10 @@ public:
     {
 		int i, n;
 		netio_task *task;
-		epoll_event evs[1024];
+		epoll_event evs[4096];
 
 again:
-		n = epoll_wait(epoll_fd, evs, 1024, 1);
+		n = epoll_wait(epoll_fd, evs, 4096, 1);
 		if (n == -1)
 		{
 			if (errno == EINTR)
