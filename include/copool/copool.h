@@ -85,7 +85,7 @@ public:
 	 */
 	void poll_run(void)
 	{
-		while (terminated)
+		while (!terminated)
 		{
 			if (poll->ioevent_handle() == -1)
 			{
