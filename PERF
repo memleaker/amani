@@ -1,0 +1,56 @@
+
+
+
+## 修改了调度和监控后性能有些下降 (COMMIT ID: a0a94dcad5dec2cbe52f994672251f12befbeeea)
+
+- 有很多时间占用在usleep上
+- 如果任务很多，而只有中间任务IO事件触发了, 那么就会多遍历很多
+
+```
+root@ali:~/code/amani# strace -c ./amani -i http://127.0.0.1 -c 10 -d 10
+Statistic about http://127.0.0.1(127.0.0.1)
+Interval          Request           Response          Rtt               200OK             
+0-1 sec           28269 qps         28259 pps         0.361492 ms       28259             
+1-2 sec           29539 qps         29539 pps         0.338977 ms       29539             
+2-3 sec           27731 qps         27732 pps         0.358299 ms       27732             
+3-4 sec           23955 qps         23954 pps         0.416804 ms       23954             
+4-5 sec           23442 qps         23442 pps         0.423476 ms       23442             
+5-6 sec           22527 qps         22527 pps         0.438753 ms       22527             
+6-7 sec           29647 qps         29647 pps         0.338249 ms       29647             
+7-8 sec           26010 qps         26010 pps         0.380217 ms       26010             
+8-9 sec           26182 qps         26182 pps         0.380452 ms       26182             
+9-10 sec          29156 qps         29157 pps         0.340304 ms       29157             
+Total Request: 266458
+Total Response: 266449
+Status Code: 
+Code: 200       Times: 266449
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 99.03    2.377211      237721        10           clock_nanosleep
+  0.45    0.010817        2704         4           brk
+  0.28    0.006711         516        13         1 futex
+  0.20    0.004866         304        16           write
+  0.01    0.000172           6        27           mmap
+  0.01    0.000150         150         1           execve
+  0.00    0.000118           9        13           mprotect
+  0.00    0.000118          23         5           clone3
+  0.00    0.000108           9        11           rt_sigprocmask
+  0.00    0.000069           8         8           openat
+  0.00    0.000059           5        10           newfstatat
+  0.00    0.000049           5         9           read
+  0.00    0.000045          15         3           munmap
+  0.00    0.000036           4         9           close
+  0.00    0.000017           4         4           pread64
+  0.00    0.000010           5         2           rt_sigaction
+  0.00    0.000009           9         1           epoll_create
+  0.00    0.000008           8         1         1 access
+  0.00    0.000007           3         2         1 arch_prctl
+  0.00    0.000006           6         1           prlimit64
+  0.00    0.000005           5         1           uname
+  0.00    0.000005           5         1           getrandom
+  0.00    0.000001           1         1           set_tid_address
+  0.00    0.000001           1         1           set_robust_list
+  0.00    0.000001           1         1           rseq
+------ ----------- ----------- --------- --------- ----------------
+100.00    2.400599       15487       155         3 total
+```
