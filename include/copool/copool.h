@@ -114,10 +114,10 @@ public:
 
 		while (!terminated)
 		{
-			/* 0. 从任务队列中取任务放到任务列表中 */
+			/* 0. 从任务队列中取任务放到任务列表中, 头插: 新任务优先调度 */
 			while (task_que.dequeue(t))
 			{
-				task_list.emplace_back(t);
+				task_list.emplace_front(t);
 			}
 
 			/* 1. 等待任务列表不为空 */
