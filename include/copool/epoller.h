@@ -14,9 +14,11 @@
 #include "poller.h"
 #include "logger/logger.h"
 
+/* @brief epoller 使用Epoll监控IO事件 */
 class epoller : public poller
 {
 public:
+	/* @brief 创建epoll和销毁 */
     epoller() : epoll_fd(epoll_create(1))
 	{
 		if (epoll_fd == -1) {
@@ -30,13 +32,14 @@ public:
 		int fd, ret;
 		epoll_event ev;
 
-		/* 1. 对于传入的fd需要判断使用 ADD还是MOD
-		   2. 如果使用 std::set 保存所有的fd:
-		   	  (1) 向set添加fd可以但不知何时删除fd
-			  (2) 耗费了空间保存fd
-			  (3) 查找与epoll复杂度相同, 都是红黑树
-		   3. 因此对于传入的fd，先使用MOD操作(MOD频繁),如果报错 ENOENT
-		      那么再使用ADD操作加入到epoll中(libevent即是这样做的) 
+		/* @brief
+		 *  1. 对于传入的fd需要判断使用 ADD还是MOD
+		 *  2. 如果使用 std::set 保存所有的fd:
+		 *    (1) 向set添加fd可以但不知何时删除fd
+		 *	  (2) 耗费了空间保存fd
+		 *	  (3) 查找与epoll复杂度相同, 都是红黑树
+		 *  3. 因此对于传入的fd，先使用MOD操作(MOD频繁),如果报错 ENOENT
+		 *     那么再使用ADD操作加入到epoll中(libevent即是这样做的) 
 		 */
 		fd = task->handle_.promise().fd;
 		ev.events   = events | EPOLLONESHOT;
@@ -61,12 +64,13 @@ public:
 		return 0;
 	}
 
-	/* 当关闭fd时, 会自动从epoll中移除, 因此该函数不常调用 */ 
+	/* @brief 当关闭fd时, 会自动从epoll中移除, 因此该函数不常调用 */ 
 	virtual int ioevent_del(int fd) override
 	{
 		return epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
 	}
 
+	/* @brief 监控IO事件, 并设置协程运行状态 */
     virtual int ioevent_handle(void) override
     {
 		int i, n;

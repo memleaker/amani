@@ -20,11 +20,13 @@
 
 #include "copool.h"
 
+/* @brief 封装socket, 创建非阻塞socket */
 int amani_socket(int domain, int type, int protocol)
 {
 	return socket(domain, type | SOCK_NONBLOCK, protocol);
 }
 
+/* @brief 封装bind, listen接口 */
 int amani_listen(int fd, uint32_t ipaddr, uint16_t port)
 {
 	int ret;
@@ -46,6 +48,10 @@ int amani_listen(int fd, uint32_t ipaddr, uint16_t port)
 	return 0;
 }
 
+/* @brief 封装connect过程
+ * 1. 当connect没有立刻完成时, 挂起协程, 等待EPOLLOUT事件
+ * 2. 当事件发生时, 连接成功
+ */
 class async_connect {
 public:
 	async_connect(int fd, sockaddr *addr, socklen_t addrlen) : 

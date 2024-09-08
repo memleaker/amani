@@ -5,6 +5,7 @@
 
 #include "netio_task.h"
 
+/* @brief 抽象类poller */
 class poller
 {
 public:
